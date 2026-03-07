@@ -1,0 +1,223 @@
+#maindashboardcontainer {
+    padding: 25px 40px;
+}
+.DashLeftSide1 {
+    border-radius: 16px;
+    overflow: hidden;
+}
+.highestwinLink {
+    text-decoration: none;
+}
+.highestwinSeebtn {
+    width: 100%;
+}
+.highestwinli {
+    font-weight: 700;
+}
+.SideCompTitle h4 {
+    font-size: 18px;
+}
+
+
+/*  */
+.RightCardcard {
+    border-radius: 15px;
+    text-align: center;
+}
+.live-badge {
+    background-color: #dc3545;
+    color: white;
+    border-radius: 10px;
+    padding: 5px 10px;
+    font-weight: bold;
+    margin: 25px 15px;
+    font-size: 11px;
+}
+#Leftteamimg {
+    width:50px;
+    height:50px;
+    border-radius: 100%;
+}
+#Rightteamimg {
+    width:50px;
+    height:50px;
+    border-radius: 100%;
+}
+.bet-button {
+    padding: 10px 25px;
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.bet-button:hover {
+    background-color: #c82333; /* Darker shade for hover effect */
+}
+.primaryPrice {
+    color: var(--Primary-Blue-Color);
+}
+.LogouTBtn {
+    color: var(--Primary-Red-Color);
+    font-weight: 600;
+    margin: 20px 0px;
+}
+.MainDataTitle h1{
+    font-size: 24px;
+}
+
+.t-Center {
+    text-align: center;
+}
+.t-Bold {
+    font-weight: 700;
+}
+.W-100 {
+    width: 100%;
+}
+.GroupPlaceBetCard h5 {
+    font-size: 24px;
+    font-weight: 600;
+    text-align: center;
+}
+.Group-Card {
+    min-height: 225px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+.DescriptionTD {
+    max-width: 100px;
+}
+.MachesActions {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+
+/*  */
+.MatchCardRow {
+    display: flex;
+    justify-content: center;
+    gap: 15px;
+    align-items: center;
+}
+.teamcol, .MatchDateTime {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+.MainMatchCard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 23px;
+    padding: 10px;
+}
+.TeamNumbers , .TeamAlphabets, .DateTime {
+    font-weight: 700;
+    font-size: 24px;
+    margin-bottom: 0px;
+    text-align: center;
+}
+
+.Desctag {
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    font-size: 15px;
+}
+.MachesActions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+    justify-content: center;
+}
+.DateTime {
+    line-height: 24px;
+    word-break: break-all;
+    text-align: center;
+}
+.AddMatchLink {
+    width:100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+/*  */
+
+
+/*  */
+
+.Resultcard {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    width: fit-content;
+    padding: 10px 15px;
+    width: 263px;
+}
+.ResultCardStat p {
+    margin-bottom: 0;
+    font-weight: 600;
+    line-height: 1rem;
+    word-break: break-all;
+    
+}
+.ResultCardDesc p{
+    color: var(--bs-secondary-color);
+    font-size: 12px;
+}
+.ResultCardRow {
+    display: flex;
+    gap:10px;
+    justify-content: center;
+}
+.Resultcards {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+.TotalBettings {
+    display: flex;
+    justify-content: center;
+    text-align: center;
+}
+.TotalMoney {
+    font-weight: 600;
+}
+.MemberActions {
+    flex-direction: column;
+}
+/*  */
+
+
+
+@media screen and (max-width: 769px) {
+    .LeftSidebarWhole {
+        display: none;
+    }
+    #maindashboardcontainer {
+        padding: 25px 0px;
+    }
+    .MainContenttableCont {
+        padding-left: 0px;
+        padding-right: 0px;
+    }
+    .PlayMatchTable {
+        font-size: 12px;
+    }
+    .MatchPlyBtn {
+        padding: 5px;
+        font-size: 12px;
+    }
+    .WallethistoryTable {
+        font-size: 12px;
+    }
+}
+/*  */
