@@ -1,26 +1,21 @@
-const Match = require('../models/Match');
-const moment = require('moment');
+const prisma = require('../config/prisma');
 
 const updateMatchStatuses = async () => {
   try {
     const now = new Date();
     
-    // Find matches where:
-    // - dateTime is less than or equal to current time
-    // - status is not already 'Ongoing' or 'Announced'
-    const matchesToUpdate = await Match.find({
-      dateTime: { $lte: now },
-      status: { $nin: ['Ongoing', 'Announced'] }
+    const matchesToUpdate = await prisma.match.updateMany({
+      where: {
+        dateTime: { lte: now },
+        status: { notIn: ['Ongoing', 'Announced'] }
+      },
+      data: {
+        status: 'Ongoing'
+      }
     });
 
-    if (matchesToUpdate.length > 0) {
-      const updatePromises = matchesToUpdate.map(match => {
-        match.status = 'Ongoing';
-        return match.save();
-      });
-
-      await Promise.all(updatePromises);
-      console.log(`Updated ${matchesToUpdate.length} matches to Ongoing status`);
+    if (matchesToUpdate.count > 0) {
+      console.log(`Updated ${matchesToUpdate.count} matches to Ongoing status`);
     }
   } catch (error) {
     console.error('Error updating match statuses:', error);

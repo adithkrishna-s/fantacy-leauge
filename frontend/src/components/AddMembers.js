@@ -48,14 +48,14 @@ const AddMembers = () => {
 
       if (userType === 'Existing User') {
         const response = await axios.post(
-          'https://fantasyleague7.com/api/users/add-member',
+          'https://fantacyleauge.com/api/users/add-member',
           { phoneNumber },
           config
         );
         toast.success(response.data.message);
       } else {
         const response = await axios.post(
-          'https://fantasyleague7.com/api/users/register-member',
+          'https://fantacyleauge.com/api/users/register-member',
           { firstName, lastName, email, phoneNumber, password, countryCode },
           config
         );

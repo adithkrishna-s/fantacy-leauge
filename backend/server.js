@@ -28,8 +28,21 @@ dotenv.config();
 connectDB();
 
 // ✅ Middleware for CORS
+const allowedOrigins = [
+  'https://fantacyleauge.com',
+  'https://www.fantacyleauge.com',
+  'http://localhost:3000',
+  'http://localhost:5000'
+];
+
 app.use(cors({
-  origin: 'https://fantasyleague7.com:3000',  // Allow requests from React frontend
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow requests during proxying/SSR
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
@@ -57,16 +70,7 @@ app.use("/api/transactions", transactionRoutes);
 
 
 
-// Users API Route
-app.get('/api/users', async (req, res) => {
-    try {
-        const users = await User.find();
-        res.json(users);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Server Error" });
-    }
-});
+
 
 // ✅ Error Handling Middleware
 app.use(errorHandler);

@@ -21,13 +21,13 @@ const AdminManageMatches = () => {
           },
         };
 
-        const { data: matches } = await axios.get(`https://fantasyleague7.com/api/matches/club/${clubId}`, config);
+        const { data: matches } = await axios.get(`https://fantacyleauge.com/api/matches/club/${clubId}`, config);
 
         // Fetch groups and bets for each match
         const matchesWithBets = await Promise.all(matches.map(async (match) => {
-          const { data: groups } = await axios.get(`https://fantasyleague7.com/api/groups/match/${match._id}`, config);
+          const { data: groups } = await axios.get(`https://fantacyleauge.com/api/groups/match/${match._id}`, config);
           const hasBets = await Promise.all(groups.map(async (group) => {
-            const { data: bets } = await axios.get(`https://fantasyleague7.com/api/bets/group/${group._id}`, config);
+            const { data: bets } = await axios.get(`https://fantacyleauge.com/api/bets/group/${group._id}`, config);
             return bets.length > 0;
           }));
           return { ...match, hasBets: hasBets.some(hasBet => hasBet) };
@@ -54,7 +54,7 @@ const AdminManageMatches = () => {
           },
         };
 
-        await axios.delete(`https://fantasyleague7.com/api/matches/${matchId}`, config);
+        await axios.delete(`https://fantacyleauge.com/api/matches/${matchId}`, config);
         toast.success('Match deleted successfully!');
         setMatches(matches.filter((match) => match._id !== matchId));
       } catch (error) {
@@ -74,14 +74,14 @@ const AdminManageMatches = () => {
         };
 
         await axios.post(
-          `https://fantasyleague7.com/api/matches/${matchId}/approve-credits`,
+          `https://fantacyleauge.com/api/matches/${matchId}/approve-credits`,
           {},
           config
         );
 
         toast.success('Credits approved and distributed successfully!');
         // Refresh matches to update the UI
-        const { data } = await axios.get(`https://fantasyleague7.com/api/matches/club/${clubId}`, config);
+        const { data } = await axios.get(`https://fantacyleauge.com/api/matches/club/${clubId}`, config);
         setMatches(data);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Failed to approve credits');

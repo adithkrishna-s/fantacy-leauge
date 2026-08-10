@@ -24,7 +24,7 @@ const AdminDashboard = () => {
             'Authorization': `Bearer ${userInfo.token}`,
           },
         };
-        const { data } = await axios.get('https://fantasyleague7.com/api/users/', config);
+        const { data } = await axios.get('https://fantacyleauge.com/api/users/', config);
         setUsers(data);
       } catch (error) {
         console.error('Error fetching users:', error);

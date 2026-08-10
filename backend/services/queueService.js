@@ -64,16 +64,22 @@ whatsappQueue.on('error', (error) => {
   console.error('Queue error:', error);
 });
 
-// Function to add a job to the WhatsApp queaaue
-const addToWhatsappQueue = (countryCode, phoneNumber, message) => {
-  return whatsappQueue.add({
-    countryCode,
-    phoneNumber,
-    message
-  });
+// Function to add a job to the WhatsApp queue
+const addToWhatsappQueue = async (countryCode, phoneNumber, message) => {
+  try {
+    return await whatsappQueue.add({
+      countryCode,
+      phoneNumber,
+      message
+    });
+  } catch (error) {
+    console.error('Failed to add job to WhatsApp queue:', error.message);
+    return null; // Gracefully handle Redis/queue unavailability
+  }
 };
 
 module.exports = {
   addToWhatsappQueue,
   whatsappQueue
 };
+

@@ -59,7 +59,7 @@ const EditGroup = () => {
           },
         };
 
-        const { data } = await axios.get(`https://fantasyleague7.com/api/groups/${groupId}`, config);
+        const { data } = await axios.get(`https://fantacyleauge.com/api/groups/${groupId}`, config);
         setBetType(data.betType);
         setBetAmount(data.betAmount);
         setMinimumIncrement(data.minimumIncrement || '');
@@ -99,7 +99,7 @@ const EditGroup = () => {
       };
 
       await axios.put(
-        `https://fantasyleague7.com/api/groups/${groupId}`,
+        `https://fantacyleauge.com/api/groups/${groupId}`,
         {
           betType,
           betAmount,

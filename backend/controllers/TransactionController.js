@@ -1,46 +1,46 @@
 const asyncHandler = require("express-async-handler");
-const Transaction = require("../models/Transaction");
-const User = require("../models/User");
+const prisma = require("../config/prisma");
+const { addToWhatsappQueue } = require('../services/queueService');
 
 // @desc    Add a new transaction
 // @route   POST /api/transactions
 // @access  Private
 const addTransaction = asyncHandler(async (req, res) => {
   try {
-    const { userId, amount, type, status } = req.body;
+    const { userId, amount, type, status, description } = req.body;
 
-    if (!userId || !amount || !type || !status) {
-      return res.status(400).json({ error: "All fields are required." });
+    if (!userId || !amount || !type) {
+      return res.status(400).json({ error: "All required fields must be provided." });
     }
 
-    // Create transaction
-    const transaction = await Transaction.create({
-      user: userId,
-      amount,
-      type,
-      status,
+    const txnCode = `TXN-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const transaction = await prisma.transaction.create({
+      data: {
+        id: require('crypto').randomUUID(),
+        transactionId: txnCode,
+        user: userId,
+        amount: parseFloat(amount),
+        type,
+        description: description || `Transaction (${type})`,
+      }
     });
 
-    // Get user details including updated credits
-    const user = await User.findById(userId).select('countryCode phoneNumber credits');
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       console.error("User not found for transaction notification");
       return res.status(201).json({ 
         message: "Transaction added but user not found for notification", 
-        transaction 
+        transaction: { ...transaction, _id: transaction.id }
       });
     }
 
-    // Format amount with + or - based on type
     const formattedAmount = type === 'Credit' ? `+₹${amount}` : `-₹${amount}`;
 
-    // Prepare WhatsApp Message
     const message = `
 💰 **Transaction Notification**
 
 Transaction Type: *${type}*
 Amount: *${formattedAmount}*
-Status: *${status}*
 Available Balance: *₹${user.credits}*
 
 📅 Date: *${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}*
@@ -48,20 +48,18 @@ Available Balance: *₹${user.credits}*
 Thank you for using FantasyLeague7!
     `.trim();
 
-    // Add message to queue
     try {
-      await addToWhatsappQueue(user.countryCode, user.phoneNumber, message);
+      await addToWhatsappQueue(user.countryCode || '+91', user.phoneNumber, message);
       console.log(`Transaction notification queued for user ${userId}`);
     } catch (queueError) {
       console.error(`Failed to queue transaction notification for user ${userId}:`, queueError);
-      // Continue with success response even if queuing fails
     }
 
     res.status(201).json({ 
       success: true,
       message: "Transaction added successfully!", 
       data: {
-        transaction,
+        transaction: { ...transaction, _id: transaction.id },
         notificationQueued: true
       }
     });
@@ -75,35 +73,36 @@ Thank you for using FantasyLeague7!
   }
 });
 
-
-
-
 // @desc    Get transactions by user ID
 // @route   GET /api/transactions/:userId
 // @access  Private
 const getTransactionsByUser = asyncHandler(async (req, res) => {
-    const { userId } = req.params;
-    const transactions = await Transaction.find({ user: userId });
+  const { userId } = req.params;
+  const transactions = await prisma.transaction.findMany({
+    where: { user: userId },
+    orderBy: { createdAt: 'desc' }
+  });
 
-    if (!transactions.length) {
-        return res.status(404).json({ error: "No transactions found for this user." });
-    }
+  const formattedTransactions = transactions.map(t => ({
+    ...t,
+    _id: t.id
+  }));
 
-    res.json(transactions);
+  res.json(formattedTransactions);
 });
 
 // @desc    Delete a transaction
 // @route   DELETE /api/transactions/:id
 // @access  Private
 const deleteTransaction = asyncHandler(async (req, res) => {
-    const transaction = await Transaction.findById(req.params.id);
+  const transaction = await prisma.transaction.findUnique({ where: { id: req.params.id } });
 
-    if (!transaction) {
-        return res.status(404).json({ error: "Transaction not found." });
-    }
+  if (!transaction) {
+    return res.status(404).json({ error: "Transaction not found." });
+  }
 
-    await transaction.deleteOne();
-    res.json({ message: "Transaction deleted successfully." });
+  await prisma.transaction.delete({ where: { id: req.params.id } });
+  res.json({ message: "Transaction deleted successfully." });
 });
 
 module.exports = { addTransaction, getTransactionsByUser, deleteTransaction };

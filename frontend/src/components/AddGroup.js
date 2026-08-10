@@ -71,7 +71,7 @@ const AddGroup = () => {
       };
 
       await axios.post(
-        'https://fantasyleague7.com/api/groups',
+        'https://fantacyleauge.com/api/groups',
         {
           betType,
           betAmount,

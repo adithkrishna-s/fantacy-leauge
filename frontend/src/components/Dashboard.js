@@ -34,14 +34,15 @@ const Dashboard = () => {
       };
 
       const { data: user } = await axios.get(
-        'https://fantasyleague7.com/api/users/profile',
+        'https://fantacyleauge.com/api/users/profile',
         config
       );
       setUserData(user);
 
-      if (user.memberOf && user.memberOf._id) {
+      const clubId = typeof user.memberOf === 'object' ? (user.memberOf?._id || user.memberOf?.id) : user.memberOf;
+      if (clubId) {
         const { data: matchData } = await axios.get(
-          `https://fantasyleague7.com/api/matches/club/${user.memberOf._id}`,
+          `https://fantacyleauge.com/api/matches/club/${clubId}`,
           config
         );
         setMatches(matchData);
@@ -69,9 +70,9 @@ const Dashboard = () => {
 
         switch (activeTab) {
           case 'All Games':
-            return matchDate >= today;
+            return matchDate >= today || match.status === 'Active' || match.status === 'Ongoing';
           case 'Live match':
-            return matchDate.getTime() === today.getTime();
+            return matchDate.getTime() === today.getTime() || match.status === 'Ongoing';
           case 'Inactive':
             return match.status === 'Inactive';
           case 'Finished':
@@ -173,7 +174,7 @@ const Dashboard = () => {
                     </td>
                     <td>{match.status}</td>
                     <td>
-                      {match.status === 'Active' ? (
+                      {match.status === 'Active' || match.status === 'Ongoing' ? (
                         <button
                           className="btn btn-primary MatchPlyBtn"
                           onClick={() => handlePlayClick(match._id)}

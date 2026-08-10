@@ -30,7 +30,7 @@ const ViewBettingSheet = () => {
         };
 
         // Fetch group details
-        const { data: groupData } = await axios.get(`https://fantasyleague7.com/api/groups/${groupId}`, config);
+        const { data: groupData } = await axios.get(`https://fantacyleauge.com/api/groups/${groupId}`, config);
         setGroup(groupData);
 
         setCombinationsMaster(groupData.CombinationsMaster || []);

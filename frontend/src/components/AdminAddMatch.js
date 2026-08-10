@@ -29,7 +29,7 @@ const AdminAddMatch = () => {
       const utcDateTime = new Date(dateTime).toISOString();
 
       await axios.post(
-        `https://fantasyleague7.com/api/matches/Admin-club/${clubId}`,
+        `https://fantacyleauge.com/api/matches/Admin-club/${clubId}`,
         { team1, team2, dateTime: utcDateTime, status },
         config
       );

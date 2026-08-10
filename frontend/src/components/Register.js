@@ -35,7 +35,7 @@ const Register = () => {
         setLoadingReferral(true);
         try {
           const { data } = await axios.get(
-            `https://fantasyleague7.com/api/users/referral/${referralCode}`
+            `https://fantacyleauge.com/api/users/referral/${referralCode}`
           );
           setReferrer(data);
           setValue('referralCode', referralCode);
@@ -55,7 +55,7 @@ const Register = () => {
       data.phoneNumber = data.phoneNumber.replace(/\s/g, '');
       
       const response = await axios.post(
-        'https://fantasyleague7.com/api/users/register', 
+        'https://fantacyleauge.com/api/users/register', 
         data, 
         { withCredentials: true }
       );
@@ -64,7 +64,7 @@ const Register = () => {
       
       // Automatically log in the user after registration
       const loginResponse = await axios.post(
-        'https://fantasyleague7.com/api/users/login', 
+        'https://fantacyleauge.com/api/users/login', 
         { phoneNumber: data.phoneNumber, password: data.password }, 
         { withCredentials: true }
       );

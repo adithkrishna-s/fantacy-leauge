@@ -76,7 +76,7 @@ const AddClub = () => {
                     'Authorization': `Bearer ${userInfo.token}`
                 }
             };
-            await axios.post('https://fantasyleague7.com/api/clubs', formData, config);
+            await axios.post('https://fantacyleauge.com/api/clubs', formData, config);
             toast.success('Club added successfully!');
             navigate('/admin-dashboard');
         } catch (error) {

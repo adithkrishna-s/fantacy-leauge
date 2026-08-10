@@ -27,7 +27,7 @@ const ChangePassword = () => {
       };
 
       await axios.put(
-        'https://fantasyleague7.com/api/users/change-password',
+        'https://fantacyleauge.com/api/users/change-password',
         { currentPassword, newPassword },
         config
       );

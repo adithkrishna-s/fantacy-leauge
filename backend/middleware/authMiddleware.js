@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/User');
+const prisma = require('../config/prisma');
 const asyncHandler = require('express-async-handler');
 
 // Protect routes (ensure user is authenticated)
@@ -13,18 +13,26 @@ const protect = asyncHandler(async (req, res, next) => {
       // Decode token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-      // Get user from database (excluding password)
-      req.user = await User.findById(decoded.id).select('-password');
+      // Get user from Prisma database (excluding password)
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+      });
 
-      if (!req.user) {
+      if (!user) {
         res.status(401);
         throw new Error('User not found');
       }
 
+      const { password, ...userWithoutPassword } = user;
+      req.user = {
+        ...userWithoutPassword,
+        _id: user.id, // For backward compatibility with frontend expecting _id
+      };
+
       next();
     } catch (error) {
       res.status(401);
-      throw new Error('Not authorized, token failed');
+      throw new Error(error.message || 'Not authorized, token failed');
     }
   } else {
     res.status(401);

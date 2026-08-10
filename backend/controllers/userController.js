@@ -1,14 +1,11 @@
 // controllers/userController.js
-const User = require('../models/User');
-const Club = require('../models/Club');
-const Transaction = require('../models/Transaction');
+const prisma = require('../config/prisma');
 const asyncHandler = require('express-async-handler');
 const generateToken = require('../utils/generateToken');
 const validator = require('validator');
 const bcrypt = require('bcryptjs');
 const axios = require('axios');
 const { addToWhatsappQueue } = require('../services/queueService');
-
 
 // @desc    Register new user
 // @route   POST /api/users/register
@@ -20,40 +17,46 @@ const registerUser = asyncHandler(async (req, res) => {
   const cleanedPhoneNumber = phoneNumber.replace(/\s/g, '');
 
   // Check if phone number already exists
-  const phoneNumberExists = await User.findOne({ phoneNumber: cleanedPhoneNumber });
+  const phoneNumberExists = await prisma.user.findUnique({ where: { phoneNumber: cleanedPhoneNumber } });
   if (phoneNumberExists) {
     res.status(400);
     throw new Error('Phone number already exists');
   }
 
-
   let referredBy = null;
   if (referralCode) {
-    const referrer = await User.findOne({ referralCode, userType: 'Member' });
+    const referrer = await prisma.user.findFirst({ where: { referralCode, userType: 'Member' } });
     if (!referrer) {
       res.status(400);
       throw new Error('Invalid referral code');
     }
-    referredBy = referrer._id;
+    referredBy = referrer.id;
   }
 
+  const hashedPassword = await bcrypt.hash(password, 10);
+  const userId = require('crypto').randomUUID();
 
-  const user = await User.create({
-    firstName,
-    lastName,
-    email,
-    countryCode,
-    phoneNumber: cleanedPhoneNumber,
-    password,
-    referredBy
+  const user = await prisma.user.create({
+    data: {
+      id: userId,
+      firstName,
+      lastName: lastName || '',
+      email: email || null,
+      countryCode: countryCode || '+91',
+      phoneNumber: cleanedPhoneNumber,
+      password: hashedPassword,
+      referredBy: referredBy || null,
+      userType: 'Member',
+    }
   });
 
   if (user) {
     try {
       // Update referrer's count if applicable
       if (referredBy) {
-        await User.findByIdAndUpdate(referredBy, {
-          $inc: { referralCount: 1 }
+        await prisma.user.update({
+          where: { id: referredBy },
+          data: { referralCount: { increment: 1 } }
         });
       }
 
@@ -72,7 +75,7 @@ Thank you for registering with Fantasy League 7! We're excited to have you on bo
 ℹ️ *Next Steps:*
 - The admin has been notified about your registration
 - You'll soon be added to a club where you can participate in matches
-- Explore the platform at https://fantasyleague7.com
+- Explore the platform at https://fantacyleauge.com
 
 📌 *Important:*
 - Do not share your password with anyone
@@ -83,18 +86,18 @@ We wish you the best of luck in your fantasy cricket journey!
 🏏 *The Fantasy League 7 Team*
       `.trim();
 
-      await addToWhatsappQueue(countryCode, cleanedPhoneNumber, welcomeMessage);
+      await addToWhatsappQueue(countryCode || '+91', cleanedPhoneNumber, welcomeMessage);
 
       // Send notification to admin
-      const admin = await User.findOne({ userType: 'Admin' });
+      const admin = await prisma.user.findFirst({ where: { userType: 'Admin' } });
       if (admin) {
         const adminNotification = `
 🆕 *New User Registration Alert*
 
 A new user has registered on Fantasy League 7:
 
-👤 *Name:* ${firstName} ${lastName}
-📱 *Phone:* ${countryCode}${cleanedPhoneNumber}
+👤 *Name:* ${firstName} ${lastName || ''}
+📱 *Phone:* ${countryCode || '+91'}${cleanedPhoneNumber}
 📧 *Email:* ${email || 'Not provided'}
 🕒 *Registered At:* ${new Date().toLocaleString('en-IN', {
           timeZone: 'Asia/Kolkata',
@@ -109,7 +112,7 @@ Please add this user to an appropriate club at your earliest convenience.
 
         `.trim();
 
-        await addToWhatsappQueue(admin.countryCode, admin.phoneNumber, adminNotification);
+        await addToWhatsappQueue(admin.countryCode || '+91', admin.phoneNumber, adminNotification);
       }
 
     } catch (error) {
@@ -121,15 +124,13 @@ Please add this user to an appropriate club at your earliest convenience.
       _id: user.id,
       email: user.email,
       userType: user.userType,
-      token: generateToken(user._id),
+      token: generateToken(user.id),
     });
   } else {
     res.status(400);
     throw new Error('Invalid user data');
   }
 });
-
-
 
 // @desc    Change user password
 // @route   PUT /api/users/change-password
@@ -140,22 +141,25 @@ const changePassword = asyncHandler(async (req, res) => {
     const userId = req.user._id;
 
     // Find the user
-    const user = await User.findById(userId);
+    const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
       res.status(404);
       throw new Error('User not found');
     }
 
     // Verify current password
-    const isMatch = await user.matchPassword(currentPassword);
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
     if (!isMatch) {
       res.status(400);
       throw new Error('Current password is incorrect');
     }
 
     // Update password
-    user.password = newPassword;
-    await user.save();
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword }
+    });
 
     // Prepare WhatsApp Message
     const message = `
@@ -171,7 +175,7 @@ For security reasons:
 - Change your password regularly
 - Contact support if you didn't initiate this change
 
-🔗 Login: https://fantasyleague7.com/login
+🔗 Login: https://fantacyleauge.com/login
     `.trim();
 
     // Add message to queue
@@ -189,30 +193,32 @@ For security reasons:
   }
 });
 
-
-
 // @desc    Authenticate user & get token
 // @route   POST /api/users/login
 // @access  Public
 const loginUser = asyncHandler(async (req, res) => {
   const { phoneNumber, password } = req.body;
 
+  if (!phoneNumber || !password) {
+    res.status(400);
+    throw new Error('Please provide phone number and password');
+  }
+
   // Remove spaces from phone number
   const cleanedPhoneNumber = phoneNumber.replace(/\s/g, '');
 
-  const user = await User.findOne({ phoneNumber: cleanedPhoneNumber });
-
-  console.log('Comparing:', password, user.password);
-  const isMatch = await bcrypt.compare(password, user.password);
-  console.log('Match result:', isMatch);
+  const user = await prisma.user.findUnique({
+    where: { phoneNumber: cleanedPhoneNumber }
+  });
 
   if (user && (await bcrypt.compare(password, user.password))) {
     res.json({
-      _id: user._id,
+      _id: user.id,
       firstName: user.firstName,
       email: user.email,
       userType: user.userType,
-      token: generateToken(user._id),
+      credits: user.credits,
+      token: generateToken(user.id),
     });
   } else {
     res.status(401);
@@ -224,11 +230,15 @@ const loginUser = asyncHandler(async (req, res) => {
 // @route   GET /api/users/
 // @access  Private/Admin
 const getUsers = asyncHandler(async (req, res) => {
-  const users = await User.find({}).select('-password');
-  res.json(users);
+  const users = await prisma.user.findMany({
+    orderBy: { createdAt: 'desc' },
+  });
+  const formattedUsers = users.map(u => {
+    const { password, ...rest } = u;
+    return { ...rest, _id: u.id };
+  });
+  res.json(formattedUsers);
 });
-
-
 
 // @desc    Add existing user as member
 // @route   POST /api/users/add-member
@@ -238,7 +248,7 @@ const addMember = asyncHandler(async (req, res) => {
     const { phoneNumber } = req.body;
     const managerId = req.user._id;
 
-    const user = await User.findOne({ phoneNumber });
+    const user = await prisma.user.findUnique({ where: { phoneNumber } });
     if (!user) {
       res.status(404);
       throw new Error('User not found');
@@ -249,31 +259,48 @@ const addMember = asyncHandler(async (req, res) => {
       throw new Error('User is not a member');
     }
 
-    const club = await Club.findOne({ user: managerId });
+    let club = await prisma.club.findUnique({ where: { user: managerId } });
+    if (!club && req.user) {
+      club = await prisma.club.findFirst({
+        where: {
+          OR: [
+            { managerEmail: req.user.email || '___none___' },
+            { managerPhone: req.user.phoneNumber || '___none___' }
+          ]
+        }
+      });
+      if (club) {
+        await prisma.club.update({
+          where: { id: club.id },
+          data: { user: managerId }
+        }).catch(console.error);
+      }
+    }
     if (!club) {
-      res.status(404);
-      throw new Error('Club not found for this manager');
+      res.status(400);
+      throw new Error('Club not found for this manager. Please contact Admin to assign a club.');
     }
 
-    user.memberOf = club._id;
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { memberOf: club.id }
+    });
 
-    const manager = await User.findById(managerId); // Fetch manager details
+    const manager = await prisma.user.findUnique({ where: { id: managerId } });
     const ManagerNumber = club.managerPhone;
 
     const message = `
-🎉 **Hello ${user.firstName},** you have been added to **${club.clubName}** by **${manager.firstName} ${manager.lastName}**.
+🎉 **Hello ${user.firstName},** you have been added to **${club.clubName}** by **${manager ? manager.firstName + ' ' + manager.lastName : ''}**.
 
 🚀 Get ready to build your dream team and start winning!
 
-🔗 **Login now & explore**: https://fantasyleague7.com/dashboard
+🔗 **Login now & explore**: https://fantacyleauge.com/dashboard
 
 Manager Phone Number: *${ManagerNumber}*
 
 🏏 Let the game begin!
     `.trim();
 
-    // Add message to queue
     try {
       await addToWhatsappQueue(user.countryCode, user.phoneNumber, message);
       console.log("Member addition WhatsApp message added to queue successfully");
@@ -291,8 +318,6 @@ Manager Phone Number: *${ManagerNumber}*
   }
 });
 
-
-
 // @desc    Add existing user as member
 // @route   POST /api/users/add-member/:clubId
 // @access  Private/Admin
@@ -301,7 +326,7 @@ const AdminaddMember = asyncHandler(async (req, res) => {
     const { phoneNumber } = req.body;
     const { clubId } = req.params;
 
-    const user = await User.findOne({ phoneNumber });
+    const user = await prisma.user.findUnique({ where: { phoneNumber } });
     if (!user) {
       res.status(404);
       throw new Error('User not found');
@@ -312,14 +337,16 @@ const AdminaddMember = asyncHandler(async (req, res) => {
       throw new Error('User is not a member');
     }
 
-    const club = await Club.findById(clubId);
+    const club = await prisma.club.findUnique({ where: { id: clubId } });
     if (!club) {
       res.status(404);
       throw new Error('Club not found');
     }
 
-    user.memberOf = club._id;
-    await user.save();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { memberOf: club.id }
+    });
 
     const ManagerNumber = club.managerPhone;
 
@@ -328,14 +355,13 @@ const AdminaddMember = asyncHandler(async (req, res) => {
 
 🚀 Get ready to build your dream team and start winning!
 
-🔗 **Login now & explore**: https://fantasyleague7.com/dashboard
+🔗 **Login now & explore**: https://fantacyleauge.com/dashboard
 
 Manager Phone Number: *${ManagerNumber}*
 
 🏏 Let the game begin!
     `.trim();
 
-    // Add message to queue
     try {
       await addToWhatsappQueue(user.countryCode, user.phoneNumber, message);
       console.log("Admin member addition WhatsApp message added to queue successfully");
@@ -345,7 +371,7 @@ Manager Phone Number: *${ManagerNumber}*
 
     res.json({ 
       message: 'Member added successfully',
-      memberId: user._id,
+      memberId: user.id,
       clubName: club.clubName
     });
   } catch (error) {
@@ -357,8 +383,6 @@ Manager Phone Number: *${ManagerNumber}*
   }
 });
 
-
-
 // @desc    Register new member
 // @route   POST /api/users/register-member
 // @access  Private/Manager
@@ -367,35 +391,48 @@ const registerMember = asyncHandler(async (req, res) => {
     const { firstName, lastName, email, phoneNumber, password, countryCode } = req.body;
     const managerId = req.user._id;
 
-    const userExists = await User.findOne({ email });
-    if (userExists) {
+    if (email) {
+      const userExists = await prisma.user.findUnique({ where: { email } });
+      if (userExists) {
         res.status(400);
         throw new Error('User already exists');
+      }
     }
 
-    const club = await Club.findOne({ user: managerId });
+    const phoneExists = await prisma.user.findUnique({ where: { phoneNumber } });
+    if (phoneExists) {
+      res.status(400);
+      throw new Error('Phone number already exists');
+    }
+
+    const club = await prisma.club.findUnique({ where: { user: managerId } });
     if (!club) {
-        res.status(404);
-        throw new Error('Club not found for this manager');
+      res.status(404);
+      throw new Error('Club not found for this manager');
     }
 
     const ManagerNumber = club.managerPhone;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = require('crypto').randomUUID();
 
-    const user = await User.create({
+    const user = await prisma.user.create({
+      data: {
+        id: userId,
         firstName,
-        lastName,
-        email,
-        countryCode,
+        lastName: lastName || '',
+        email: email || null,
+        countryCode: countryCode || '+91',
         phoneNumber,
-        password,
+        password: hashedPassword,
         userType: 'Member',
-        memberOf: club._id,
+        memberOf: club.id,
+      }
     });
 
-    const manager = await User.findById(managerId); // Fetch manager details
+    const manager = await prisma.user.findUnique({ where: { id: managerId } });
 
     const message = `
-🎉 **Hello ${firstName},** you have been added to **${club.clubName}** by **${manager.firstName} ${manager.lastName}**.
+🎉 **Hello ${firstName},** you have been added to **${club.clubName}** by **${manager ? manager.firstName + ' ' + manager.lastName : ''}**.
 
 🚀 Get ready to build your dream team and start winning!
 
@@ -403,16 +440,15 @@ const registerMember = asyncHandler(async (req, res) => {
 👤 Username: *${phoneNumber}*
 🔒 Password: *${password}*
 
-🔗 **Login now & explore**: https://fantasyleague7.com/dashboard
+🔗 **Login now & explore**: https://fantacyleauge.com/dashboard
 
 Manager Phone Number: *${ManagerNumber}*
 
 🏏 Let the game begin!
     `.trim();
 
-    // Add message to queue
     try {
-      await addToWhatsappQueue(countryCode, phoneNumber, message);
+      await addToWhatsappQueue(countryCode || '+91', phoneNumber, message);
       console.log("Member registration WhatsApp message added to queue successfully");
     } catch (waError) {
       console.error("Failed to add WhatsApp message to queue:", waError.message);
@@ -428,31 +464,26 @@ Manager Phone Number: *${ManagerNumber}*
   }
 });
 
-
-
 // @desc    Get user details by ID
 // @route   GET /api/users/userdetails/:id
 // @access  Private
 const getUserById = asyncHandler(async (req, res) => {
   const memberId = req.params.id;
-  const user = await User.findById(memberId);
+  const user = await prisma.user.findUnique({ where: { id: memberId } });
   if (user) {
     res.json({
-      _id: user._id,
+      _id: user.id,
       firstName: user.firstName,
       email: user.email,
       phone: user.phoneNumber,
       userType: user.userType,
-      credits: user.credits,  // Include credits here
+      credits: user.credits,
     });
   } else {
     res.status(404);
     throw new Error('User not found');
   }
 });
-
-
-
 
 // @desc    Register new member
 // @route   POST /api/users/register-member/:clubId
@@ -462,29 +493,34 @@ const AdminregisterMember = asyncHandler(async (req, res) => {
     const { firstName, lastName, email, phoneNumber, password, countryCode } = req.body;
     const { clubId } = req.params;
 
-    const userExists = await User.findOne({ phoneNumber });
+    const userExists = await prisma.user.findUnique({ where: { phoneNumber } });
     if (userExists) {
       res.status(400);
       throw new Error('User already exists');
     }
 
-    const club = await Club.findById(clubId);
+    const club = await prisma.club.findUnique({ where: { id: clubId } });
     if (!club) {
       res.status(404);
       throw new Error('Club not found');
     }
 
     const ManagerNumber = club.managerPhone;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const userId = require('crypto').randomUUID();
 
-    const user = await User.create({
-      firstName,
-      lastName,
-      email,
-      countryCode,
-      phoneNumber,
-      password,
-      userType: 'Member',
-      memberOf: club._id,
+    const user = await prisma.user.create({
+      data: {
+        id: userId,
+        firstName,
+        lastName: lastName || '',
+        email: email || null,
+        countryCode: countryCode || '+91',
+        phoneNumber,
+        password: hashedPassword,
+        userType: 'Member',
+        memberOf: club.id,
+      }
     });
 
     const message = `
@@ -495,16 +531,15 @@ const AdminregisterMember = asyncHandler(async (req, res) => {
 🔑 **Login Details:**
 👤 Username: *${phoneNumber}*
 🔒 Password: **${password}**
-🔗 **Login now & explore**: https://fantasyleague7.com/dashboard
+🔗 **Login now & explore**: https://fantacyleauge.com/dashboard
 
 Manager Phone Number: *${ManagerNumber}*
 
 🏏 Let the game begin!
     `.trim();
 
-    // Add message to queue
     try {
-      await addToWhatsappQueue(countryCode, phoneNumber, message);
+      await addToWhatsappQueue(countryCode || '+91', phoneNumber, message);
       console.log("Admin member registration WhatsApp message added to queue successfully");
     } catch (waError) {
       console.error("Failed to add WhatsApp message to queue:", waError.message);
@@ -512,7 +547,7 @@ Manager Phone Number: *${ManagerNumber}*
 
     res.status(201).json({ 
       message: 'Member registered successfully',
-      memberId: user._id,
+      memberId: user.id,
       clubName: club.clubName
     });
   } catch (error) {
@@ -524,22 +559,26 @@ Manager Phone Number: *${ManagerNumber}*
   }
 });
 
-
-
 // @desc    Get all members of the manager's club
 // @route   GET /api/users/members
 // @access  Private/Manager
 const getMembers = asyncHandler(async (req, res) => {
   const managerId = req.user._id;
 
-  const club = await Club.findOne({ user: managerId });
+  const club = await prisma.club.findUnique({ where: { user: managerId } });
   if (!club) {
     res.status(404);
     throw new Error('Club not found for this manager');
   }
 
-  const members = await User.find({ memberOf: club._id }).select('-password');
-  res.json(members);
+  const members = await prisma.user.findMany({
+    where: { memberOf: club.id }
+  });
+  const formattedMembers = members.map(m => {
+    const { password, ...rest } = m;
+    return { ...rest, _id: m.id };
+  });
+  res.json(formattedMembers);
 });
 
 // @desc    Get all members of the manager's club
@@ -548,17 +587,21 @@ const getMembers = asyncHandler(async (req, res) => {
 const getMembersbyClub = asyncHandler(async (req, res) => {
   const clubId = req.params.clubId;
 
-  const club = await Club.findOne({ _id: clubId });
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
   if (!club) {
     res.status(404);
     throw new Error('Club not found for this manager');
   }
 
-  const members = await User.find({ memberOf: club._id }).select('-password');
-  res.json(members);
+  const members = await prisma.user.findMany({
+    where: { memberOf: club.id }
+  });
+  const formattedMembers = members.map(m => {
+    const { password, ...rest } = m;
+    return { ...rest, _id: m.id };
+  });
+  res.json(formattedMembers);
 });
-
-
 
 // @desc    Add credit to a member
 // @route   PUT /api/users/add-credit/:id
@@ -573,31 +616,36 @@ const addCredit = asyncHandler(async (req, res) => {
       throw new Error('Please enter a valid credit amount');
     }
 
-    const member = await User.findById(memberId);
+    const member = await prisma.user.findUnique({ where: { id: memberId } });
     if (!member) {
       res.status(404);
       throw new Error('Member not found');
     }
 
     const amount = parseFloat(creditAmount);
-    member.credits += amount;
-    await member.save();
-
-    // Create a new transaction
-    const transaction = await Transaction.create({
-      user: member._id,
-      amount: amount,
-      type: "Credit",
-      description: `₹${creditAmount} Credited by Manager`,
+    const updatedMember = await prisma.user.update({
+      where: { id: memberId },
+      data: { credits: { increment: amount } }
     });
 
-    // Prepare WhatsApp Notification
+    const txnCode = `TXN-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const transaction = await prisma.transaction.create({
+      data: {
+        id: require('crypto').randomUUID(),
+        transactionId: txnCode,
+        user: memberId,
+        amount: amount,
+        type: "Credit",
+        description: `₹${creditAmount} Credited by Manager`,
+      }
+    });
+
     const message = `
 💰 **Credit Added to Your Account**
 
 💳 *Transaction Type:* Credit
 ➕ *Amount Credited:* +₹${amount.toFixed(2)}
-🏦 *New Wallet Balance:* ₹${member.credits.toFixed(2)}
+🏦 *New Wallet Balance:* ₹${updatedMember.credits.toFixed(2)}
 📝 *Description:* Credited by Manager
 
 📅 *Date:* ${new Date().toLocaleString('en-IN', { 
@@ -612,9 +660,8 @@ const addCredit = asyncHandler(async (req, res) => {
 Thank you for using FantasyLeague7!
     `.trim();
 
-    // Add message to queue
     try {
-      await addToWhatsappQueue(member.countryCode, member.phoneNumber, message);
+      await addToWhatsappQueue(member.countryCode || '+91', member.phoneNumber, message);
       console.log("Credit notification added to WhatsApp queue successfully");
     } catch (waError) {
       console.error("Failed to add credit notification to queue:", waError.message);
@@ -622,8 +669,8 @@ Thank you for using FantasyLeague7!
 
     res.json({ 
       message: 'Credit added successfully',
-      newBalance: member.credits,
-      transactionId: transaction._id 
+      newBalance: updatedMember.credits,
+      transactionId: transaction.id 
     });
 
   } catch (error) {
@@ -635,25 +682,25 @@ Thank you for using FantasyLeague7!
   }
 });
 
-
 // @desc    Remove a member from the club
 // @route   PUT /api/users/remove-member/:id
 // @access  Private/Manager
 const removeMember = asyncHandler(async (req, res) => {
   const memberId = req.params.id;
 
-  const member = await User.findById(memberId);
+  const member = await prisma.user.findUnique({ where: { id: memberId } });
   if (!member) {
     res.status(404);
     throw new Error('Member not found');
   }
 
-  member.memberOf = null;
-  await member.save();
+  await prisma.user.update({
+    where: { id: memberId },
+    data: { memberOf: null }
+  });
 
   res.json({ message: 'Member removed successfully' });
 });
-
 
 // @desc    Deduct credit from a member
 // @route   PUT /api/users/deduct-credit/:id
@@ -668,7 +715,7 @@ const deductCredit = asyncHandler(async (req, res) => {
       throw new Error('Please enter a valid credit amount');
     }
 
-    const member = await User.findById(memberId).select('countryCode phoneNumber credits firstName');
+    const member = await prisma.user.findUnique({ where: { id: memberId } });
     if (!member) {
       res.status(404);
       throw new Error('Member not found');
@@ -680,19 +727,23 @@ const deductCredit = asyncHandler(async (req, res) => {
       throw new Error('Insufficient credits for deduction');
     }
 
-    member.credits -= amount;
-    await member.save();
-
-    // Create transaction record
-    const transaction = await Transaction.create({
-      user: member._id,
-      amount: amount,
-      type: "Debit",
-      description: `₹${amount.toFixed(2)} Debited by Manager`,
-      reference: `DEDUCT-${Date.now()}`
+    const updatedMember = await prisma.user.update({
+      where: { id: memberId },
+      data: { credits: { decrement: amount } }
     });
 
-    // Prepare WhatsApp message
+    const txnCode = `DEDUCT-${Date.now()}`;
+    const transaction = await prisma.transaction.create({
+      data: {
+        id: require('crypto').randomUUID(),
+        transactionId: txnCode,
+        user: memberId,
+        amount: amount,
+        type: "Debit",
+        description: `₹${amount.toFixed(2)} Debited by Manager`,
+      }
+    });
+
     const message = `
 ⚠️ **Credit Deduction Notification**
 
@@ -700,7 +751,7 @@ Dear ${member.firstName},
 
 💸 *Transaction Type:* Debit
 ➖ *Amount Deducted:* ₹${amount.toFixed(2)}
-💰 *Remaining Balance:* ₹${member.credits.toFixed(2)}
+💰 *Remaining Balance:* ₹${updatedMember.credits.toFixed(2)}
 📝 *Reason:* Manager adjustment
 
 📅 *Date:* ${new Date().toLocaleString('en-IN', {
@@ -712,28 +763,26 @@ Dear ${member.firstName},
       minute: '2-digit'
     })}
 
-🔢 *Transaction ID:* ${transaction._id}
+🔢 *Transaction ID:* ${transaction.id}
 
 For any queries, please contact your manager.
     `.trim();
 
-    // Add to queue
     try {
-      await addToWhatsappQueue(member.countryCode, member.phoneNumber, message);
+      await addToWhatsappQueue(member.countryCode || '+91', member.phoneNumber, message);
       console.log(`Deduction notification queued for ${member.phoneNumber}`);
     } catch (queueError) {
       console.error('Failed to queue deduction notification:', queueError);
-      // Optional: You could log this to a separate error tracking system
     }
 
     res.json({
       success: true,
       message: 'Credit deduction processed successfully',
       data: {
-        memberId: member._id,
+        memberId: member.id,
         amountDeducted: amount,
-        newBalance: member.credits,
-        transactionId: transaction._id,
+        newBalance: updatedMember.credits,
+        transactionId: transaction.id,
         timestamp: new Date()
       }
     });
@@ -748,49 +797,51 @@ For any queries, please contact your manager.
   }
 });
 
-
 // @desc    Get user profile
 // @route   GET /api/users/profile
 // @access  Private
 const getUserProfile = asyncHandler(async (req, res) => {
-  const user = await User.findById(req.user._id).populate('memberOf', 'clubName');
+  const user = await prisma.user.findUnique({
+    where: { id: req.user._id },
+    include: {
+      Club_User_memberOfToClub: {
+        select: { id: true, clubName: true }
+      }
+    }
+  });
+
   if (user) {
-    res.json(user);
+    const { password, ...userWithoutPassword } = user;
+    res.json({
+      ...userWithoutPassword,
+      _id: user.id,
+      memberOf: user.Club_User_memberOfToClub 
+        ? { _id: user.Club_User_memberOfToClub.id, id: user.Club_User_memberOfToClub.id, clubName: user.Club_User_memberOfToClub.clubName } 
+        : null
+    });
   } else {
     res.status(404);
     throw new Error('User not found');
   }
 });
 
-
-
-// NeWly Added
 // @desc    Forgot password - send OTP via WhatsApp
 // @route   POST /api/users/forgot-password
 // @access  Public
 const forgotPassword = asyncHandler(async (req, res) => {
   try {
     const { phoneNumber } = req.body;
-
-    // Remove spaces from phone number
     const cleanedPhoneNumber = phoneNumber.replace(/\s/g, '');
 
-    const user = await User.findOne({ phoneNumber: cleanedPhoneNumber });
+    const user = await prisma.user.findUnique({ where: { phoneNumber: cleanedPhoneNumber } });
     if (!user) {
       res.status(404);
       throw new Error('User not found with this phone number');
     }
 
-    // Generate 6-digit OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiry = Date.now() + 10 * 60 * 1000; // OTP valid for 10 minutes
+    const otpExpiry = Date.now() + 10 * 60 * 1000;
 
-    // Save OTP and expiry to user
-    user.resetPasswordOTP = otp;
-    user.resetPasswordExpires = otpExpiry;
-    await user.save();
-
-    // Prepare OTP message
     const message = `
 🔐 **Password Reset OTP Verification**
 
@@ -807,9 +858,8 @@ Your one-time password (OTP) is:
 If you didn't request this, please secure your account immediately.
     `.trim();
 
-    // Add message to queue
     try {
-      await addToWhatsappQueue(user.countryCode, cleanedPhoneNumber, message);
+      await addToWhatsappQueue(user.countryCode || '+91', cleanedPhoneNumber, message);
       
       res.json({ 
         success: true,
@@ -817,8 +867,7 @@ If you didn't request this, please secure your account immediately.
         data: {
           phoneNumber: cleanedPhoneNumber,
           otpExpiresAt: new Date(otpExpiry).toISOString(),
-          // Don't send OTP back in response
-          userFirstName: user.firstName // Optional, for client-side personalization
+          userFirstName: user.firstName
         }
       });
     } catch (queueError) {
@@ -836,23 +885,14 @@ If you didn't request this, please secure your account immediately.
   }
 });
 
-
-
 // @desc    Verify OTP
 // @route   POST /api/users/verify-otp
 // @access  Public
 const verifyOTP = asyncHandler(async (req, res) => {
   const { phoneNumber, otp } = req.body;
-
-  // Remove spaces from phone number
   const cleanedPhoneNumber = phoneNumber.replace(/\s/g, '');
 
-  const user = await User.findOne({ 
-    phoneNumber: cleanedPhoneNumber,
-    resetPasswordOTP: otp,
-    resetPasswordExpires: { $gt: Date.now() }
-  });
-
+  const user = await prisma.user.findUnique({ where: { phoneNumber: cleanedPhoneNumber } });
   if (!user) {
     res.status(400);
     throw new Error('Invalid OTP or OTP has expired');
@@ -870,41 +910,29 @@ const verifyOTP = asyncHandler(async (req, res) => {
 // @access  Public
 const resetPassword = asyncHandler(async (req, res) => {
   const { phoneNumber, otp, newPassword } = req.body;
-
-  // Remove spaces from phone number
   const cleanedPhoneNumber = phoneNumber.replace(/\s/g, '');
 
-  const user = await User.findOne({ 
-    phoneNumber: cleanedPhoneNumber,
-    resetPasswordOTP: otp,
-    resetPasswordExpires: { $gt: Date.now() }
-  });
-
+  const user = await prisma.user.findUnique({ where: { phoneNumber: cleanedPhoneNumber } });
   if (!user) {
     res.status(400);
     throw new Error('Invalid OTP or OTP has expired');
   }
 
-  // Update password and clear OTP fields
-  user.password = newPassword;
-  user.resetPasswordOTP = undefined;
-  user.resetPasswordExpires = undefined;
-  await user.save();
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { password: hashedPassword }
+  });
 
   res.json({ message: 'Password reset successfully' });
 });
-
-// Add these new functions to the controller
-const generateReferralCode = () => {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
-};
 
 // @desc    Get user by referral code
 // @route   GET /api/users/referral/:code
 // @access  Public
 const getUserByReferralCode = asyncHandler(async (req, res) => {
   const { code } = req.params;
-  const user = await User.findOne({ referralCode: code, userType: 'Member' });
+  const user = await prisma.user.findFirst({ where: { referralCode: code, userType: 'Member' } });
   
   if (!user) {
     res.status(404);
@@ -924,45 +952,48 @@ const getUserByReferralCode = asyncHandler(async (req, res) => {
 const getReferralStats = asyncHandler(async (req, res) => {
   const userId = req.user._id;
   
-  const referredUsers = await User.find({ referredBy: userId }).select('firstName lastName createdAt phoneNumber');
-  const user = await User.findById(userId).select('referralCode referralCount referralEarnings');
+  const referredUsers = await prisma.user.findMany({
+    where: { referredBy: userId },
+    select: { firstName: true, lastName: true, createdAt: true, phoneNumber: true }
+  });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { referralCode: true, referralCount: true, referralEarnings: true }
+  });
   
   res.json({
-    referralCode: user.referralCode,
-    referralCount: user.referralCount,
-    referralEarnings: user.referralEarnings,
+    referralCode: user ? user.referralCode : null,
+    referralCount: user ? user.referralCount : 0,
+    referralEarnings: user ? user.referralEarnings : 0,
     referredUsers
   });
 });
 
-
-// Add this to your userController.js
-// @desc    Get referral stats for a user
-// @route   GET /api/send-whatsapp
+// @desc    Send WhatsApp invite
+// @route   POST /api/users/send-whatsapp
 // @access  Private/Member
 const sendWhatsAppInvite = asyncHandler(async (req, res) => {
   try {
     const { phoneNumber } = req.body;
     const userId = req.user._id;
 
-    // Get user's referral code
-    const user = await User.findById(userId).select('referralCode firstName lastName');
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { referralCode: true, firstName: true, lastName: true }
+    });
     if (!user) {
       res.status(404);
       throw new Error('User not found');
     }
 
-    // Validate phone number format (basic validation)
     const cleanedPhoneNumber = phoneNumber.replace(/\s/g, '');
     if (!/^\d{10,15}$/.test(cleanedPhoneNumber)) {
       res.status(400);
       throw new Error('Invalid phone number format');
     }
 
-    // Create referral link
-    const referralLink = `https://fantasyleague7.com/register?ref=${user.referralCode}`;
+    const referralLink = `https://fantacyleauge.com/register?ref=${user.referralCode}`;
     
-    // Create personalized message
     const message = `
 🌟 *You're Invited to FantasyLeague7!* 🌟
 
@@ -982,8 +1013,7 @@ Tap the link above to join now!
 - The FantasyLeague7 Team
     `.trim();
 
-    // Send via your WhatsApp queue service
-    await addToWhatsappQueue('+91', cleanedPhoneNumber, message); // Change country code if needed
+    await addToWhatsappQueue('+91', cleanedPhoneNumber, message);
 
     res.json({
       success: true,
@@ -1003,8 +1033,26 @@ Tap the link above to join now!
   }
 });
 
-
-
-
-
-module.exports = { forgotPassword, verifyOTP, resetPassword, registerUser, loginUser, changePassword, getUsers, getUserById, addMember, registerMember, getMembers, addCredit, removeMember, deductCredit, getUserProfile, getMembersbyClub, AdminaddMember, AdminregisterMember, getUserByReferralCode, getReferralStats, sendWhatsAppInvite};
+module.exports = { 
+  forgotPassword, 
+  verifyOTP, 
+  resetPassword, 
+  registerUser, 
+  loginUser, 
+  changePassword, 
+  getUsers, 
+  getUserById, 
+  addMember, 
+  registerMember, 
+  getMembers, 
+  addCredit, 
+  removeMember, 
+  deductCredit, 
+  getUserProfile, 
+  getMembersbyClub, 
+  AdminaddMember, 
+  AdminregisterMember, 
+  getUserByReferralCode, 
+  getReferralStats, 
+  sendWhatsAppInvite
+};

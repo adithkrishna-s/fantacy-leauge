@@ -22,7 +22,7 @@ const Referral = () => {
           },
         };
 
-        const { data } = await axios.get('https://fantasyleague7.com/api/users/referral-stats', config);
+        const { data } = await axios.get('https://fantacyleauge.com/api/users/referral-stats', config);
         setReferralData(data);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Failed to fetch referral data');
@@ -48,10 +48,10 @@ const Referral = () => {
         setLoading(true);
         try {
         const userInfo = JSON.parse(localStorage.getItem('userInfo'));
-        const referralLink = `https://fantasyleague7.com/register?ref=${referralData.referralCode}`;
+        const referralLink = `https://fantacyleauge.com/register?ref=${referralData.referralCode}`;
         
         await axios.post(
-            'https://fantasyleague7.com/api/users/send-whatsapp', 
+            'https://fantacyleauge.com/api/users/send-whatsapp', 
             {
             phoneNumber: phoneNumber.replace(/\s/g, '')
             },
@@ -82,7 +82,7 @@ const Referral = () => {
 
     if (!referralData) return <div>Loading...</div>;
 
-    const referralLink = `https://fantasyleague7.com/register?ref=${referralData.referralCode}`;
+    const referralLink = `https://fantacyleauge.com/register?ref=${referralData.referralCode}`;
 
     return (
         <MemberLayout>

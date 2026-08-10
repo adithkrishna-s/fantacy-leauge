@@ -26,11 +26,11 @@ const AdminMatchResult = () => {
       };
 
       // Fetch match details
-      const { data: matchData } = await axios.get(`https://fantasyleague7.com/api/matches/${matchId}`, config);
+      const { data: matchData } = await axios.get(`https://fantacyleauge.com/api/matches/${matchId}`, config);
       setMatch(matchData);
 
       // Fetch groups for the match
-      const { data: groupsData } = await axios.get(`https://fantasyleague7.com/api/groups/match/${matchId}`, config);
+      const { data: groupsData } = await axios.get(`https://fantacyleauge.com/api/groups/match/${matchId}`, config);
 
       // Fetch winners for each group
       const groupsWithWinners = await Promise.all(
@@ -57,7 +57,7 @@ const AdminMatchResult = () => {
         },
       };
 
-      const { data: winnersData } = await axios.get(`https://fantasyleague7.com/api/winners/group/${groupId}`, config);
+      const { data: winnersData } = await axios.get(`https://fantacyleauge.com/api/winners/group/${groupId}`, config);
       return winnersData;
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load winners');

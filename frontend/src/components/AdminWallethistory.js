@@ -20,7 +20,7 @@ const AdminWalletHistory = () => {
           Authorization: `Bearer ${userInfo.token}`,
         },
       };
-      const { data } = await axios.get(`https://fantasyleague7.com/api/transactions/${userInfo._id}`, config);
+      const { data } = await axios.get(`https://fantacyleauge.com/api/transactions/${userInfo._id}`, config);
       setTransactions(data.reverse()); // Sort by most recent transaction
       setLoading(false);
     } catch (error) {

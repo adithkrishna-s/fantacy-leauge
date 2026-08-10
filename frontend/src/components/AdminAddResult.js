@@ -24,7 +24,7 @@ const AdminAddResult = () => {
           },
         };
 
-        const { data } = await axios.get(`https://fantasyleague7.com/api/matches/${matchId}`, config);
+        const { data } = await axios.get(`https://fantacyleauge.com/api/matches/${matchId}`, config);
         setTeam1Name(data.team1);
         setTeam2Name(data.team2);
 
@@ -32,7 +32,7 @@ const AdminAddResult = () => {
           setResultId(data.result);
           
           // Fetch the result details separately
-            const resultResponse = await axios.get(`https://fantasyleague7.com/api/results/${data.result}`, config);
+            const resultResponse = await axios.get(`https://fantacyleauge.com/api/results/${data.result}`, config);
             const resultData = resultResponse.data;
 
             setTeam1Scores(resultData.team1Scores || Array(7).fill(0));
@@ -58,21 +58,21 @@ const AdminAddResult = () => {
 
       if (resultId) {
         await axios.put(
-          `https://fantasyleague7.com/api/results/${resultId}`,
+          `https://fantacyleauge.com/api/results/${resultId}`,
           { team1Scores, team2Scores },
           config
         );
         toast.success('Result updated successfully!');
       } else {
         await axios.post(
-          'https://fantasyleague7.com/api/results',
+          'https://fantacyleauge.com/api/results',
           { matchId, team1Scores, team2Scores },
           config
         );
         toast.success('Result added successfully!');
       }
 
-      const matchResponse = await axios.get(`https://fantasyleague7.com/api/matches/${matchId}`, config);
+      const matchResponse = await axios.get(`https://fantacyleauge.com/api/matches/${matchId}`, config);
       const clubId = matchResponse.data.club._id; // Assuming 'club' contains the club ID
 
       navigate(`/admin-dashboard/manage-club/${clubId}`);

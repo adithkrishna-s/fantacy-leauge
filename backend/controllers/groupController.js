@@ -1,8 +1,5 @@
-// backend/controllers/groupController.js
 const asyncHandler = require('express-async-handler');
-const Group = require('../models/Group');
-const Match = require('../models/Match');
-const Club = require('../models/Club');
+const prisma = require('../config/prisma');
 
 // @desc    Create a new group
 // @route   POST /api/groups
@@ -10,35 +7,41 @@ const Club = require('../models/Club');
 const createGroup = asyncHandler(async (req, res) => {
   const { betType, betAmount, minimumIncrement, matchId, winnerShare1, winnerShare2, winnerShare3, status } = req.body;
 
-  // Validate match
-  const match = await Match.findById(matchId);
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) {
     res.status(404);
     throw new Error('Match not found');
   }
 
-  // Validate minimumIncrement for Bidding Method
   if (betType === 'Bidding Method' && (!minimumIncrement || isNaN(minimumIncrement))) {
     res.status(400);
     throw new Error('Minimum increment is required for Bidding Method');
   }
 
-  const club = await Club.findById(match.club);
+  const club = await prisma.club.findUnique({ where: { id: match.club } });
+  if (!club) {
+    res.status(404);
+    throw new Error('Club not found for this match');
+  }
 
-  const group = await Group.create({
-    betType,
-    betAmount,
-    minimumIncrement: betType === 'Bidding Method' ? minimumIncrement : undefined,
-    match: matchId,
-    status,
-    winnerShare1,
-    winnerShare2,
-    winnerShare3,
-    adminShare: club.adminShare, // Auto-assign from club
-    managerShare: club.managerShare, // Auto-assign from club
+  const groupId = require('crypto').randomUUID();
+  const group = await prisma.group.create({
+    data: {
+      id: groupId,
+      betType: betType || 'First Better',
+      betAmount: parseFloat(betAmount),
+      minimumIncrement: betType === 'Bidding Method' ? parseFloat(minimumIncrement) : null,
+      match: matchId,
+      status: status || 'Inactive',
+      winnerShare1: parseFloat(winnerShare1),
+      winnerShare2: parseFloat(winnerShare2),
+      winnerShare3: parseFloat(winnerShare3),
+      adminShare: club.adminShare,
+      managerShare: club.managerShare,
+    }
   });
 
-  res.status(201).json(group);
+  res.status(201).json({ ...group, _id: group.id });
 });
 
 // @desc    Get all groups for a match
@@ -47,8 +50,23 @@ const createGroup = asyncHandler(async (req, res) => {
 const getGroupsByMatch = asyncHandler(async (req, res) => {
   const { matchId } = req.params;
 
-  const groups = await Group.find({ match: matchId }).populate('match', 'team1 team2 dateTime');
-  res.json(groups);
+  const groups = await prisma.group.findMany({
+    where: { match: matchId },
+    include: {
+      Match: {
+        select: { id: true, team1: true, team2: true, dateTime: true }
+      }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+
+  const formattedGroups = groups.map(g => ({
+    ...g,
+    _id: g.id,
+    match: g.Match ? { _id: g.Match.id, team1: g.Match.team1, team2: g.Match.team2, dateTime: g.Match.dateTime } : null
+  }));
+
+  res.json(formattedGroups);
 });
 
 // @desc    Update a group
@@ -58,42 +76,41 @@ const updateGroup = asyncHandler(async (req, res) => {
   const { betType, betAmount, minimumIncrement, winnerShare1, winnerShare2, winnerShare3, status } = req.body;
   const groupId = req.params.id;
 
-  // Validate match
-  
-
-  const group = await Group.findById(groupId);
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
   if (!group) {
     res.status(404);
     throw new Error('Group not found');
   }
 
-  const match = await Match.findById(group.match._id);
+  const match = await prisma.match.findUnique({ where: { id: group.match } });
   if (!match) {
     res.status(404);
     throw new Error('Match not found');
   }
 
-  // Validate minimumIncrement for Bidding Method
   if (betType === 'Bidding Method' && (!minimumIncrement || isNaN(minimumIncrement))) {
     res.status(400);
     throw new Error('Minimum increment is required for Bidding Method');
   }
 
-  const club = await Club.findById(match.club);
+  const club = await prisma.club.findUnique({ where: { id: match.club } });
 
-  group.betType = betType;
-  group.betAmount = betAmount;
-  group.minimumIncrement = betType === 'Bidding Method' ? minimumIncrement : undefined;
-  group.status = status;
-  group.winnerShare1 = winnerShare1;
-  group.winnerShare2 = winnerShare2;
-  group.winnerShare3 = winnerShare3;
-  group.adminShare = club.adminShare; // Auto-assign from club
-  group.managerShare = club.managerShare; // Auto-assign from club
-  
+  const updatedGroup = await prisma.group.update({
+    where: { id: groupId },
+    data: {
+      betType: betType !== undefined ? betType : group.betType,
+      betAmount: betAmount !== undefined ? parseFloat(betAmount) : group.betAmount,
+      minimumIncrement: betType === 'Bidding Method' ? parseFloat(minimumIncrement) : null,
+      status: status !== undefined ? status : group.status,
+      winnerShare1: winnerShare1 !== undefined ? parseFloat(winnerShare1) : group.winnerShare1,
+      winnerShare2: winnerShare2 !== undefined ? parseFloat(winnerShare2) : group.winnerShare2,
+      winnerShare3: winnerShare3 !== undefined ? parseFloat(winnerShare3) : group.winnerShare3,
+      adminShare: club ? club.adminShare : group.adminShare,
+      managerShare: club ? club.managerShare : group.managerShare,
+    }
+  });
 
-  const updatedGroup = await group.save();
-  res.json(updatedGroup);
+  res.json({ ...updatedGroup, _id: updatedGroup.id });
 });
 
 // @desc    Delete a group
@@ -102,30 +119,41 @@ const updateGroup = asyncHandler(async (req, res) => {
 const deleteGroup = asyncHandler(async (req, res) => {
   const groupId = req.params.id;
 
-  const group = await Group.findById(groupId);
+  const group = await prisma.group.findUnique({ where: { id: groupId } });
   if (!group) {
     res.status(404);
     throw new Error('Group not found');
   }
 
-  await Group.deleteOne({ _id: groupId });
+  await prisma.group.delete({ where: { id: groupId } });
   res.json({ message: 'Group deleted successfully' });
 });
-
 
 // @desc    Get a single group by ID
 // @route   GET /api/groups/:id
 // @access  Private/Manager
 const getGroupById = asyncHandler(async (req, res) => {
-    const { id } = req.params;
-  
-    const group = await Group.findById(id).populate('match', 'team1 team2 dateTime ');
-    if (!group) {
-      res.status(404);
-      throw new Error('Group not found');
+  const { id } = req.params;
+
+  const group = await prisma.group.findUnique({
+    where: { id },
+    include: {
+      Match: {
+        select: { id: true, team1: true, team2: true, dateTime: true }
+      }
     }
-  
-    res.json(group);
+  });
+
+  if (!group) {
+    res.status(404);
+    throw new Error('Group not found');
+  }
+
+  res.json({
+    ...group,
+    _id: group.id,
+    match: group.Match ? { _id: group.Match.id, team1: group.Match.team1, team2: group.Match.team2, dateTime: group.Match.dateTime } : null
+  });
 });
 
 module.exports = {

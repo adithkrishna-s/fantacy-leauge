@@ -26,14 +26,15 @@ const GroupList = () => {
       };
 
       const { data: user } = await axios.get(
-        'https://fantasyleague7.com/api/users/profile',
+        'https://fantacyleauge.com/api/users/profile',
         config
       );
       setUserData(user);
 
-      if (user.memberOf && user.memberOf._id) {
+      const clubId = typeof user.memberOf === 'object' ? (user.memberOf?._id || user.memberOf?.id) : user.memberOf;
+      if (clubId) {
         const { data: matchData } = await axios.get(
-          `https://fantasyleague7.com/api/matches/club/${user.memberOf._id}`,
+          `https://fantacyleauge.com/api/matches/club/${clubId}`,
           config
         );
         setMatches(matchData);
@@ -55,7 +56,7 @@ const GroupList = () => {
         },
       };
 
-      const { data } = await axios.get(`https://fantasyleague7.com/api/groups/match/${matchId}`, config);
+      const { data } = await axios.get(`https://fantacyleauge.com/api/groups/match/${matchId}`, config);
       setGroups(data);
       setLoading(false);
     } catch (error) {

@@ -1,13 +1,6 @@
-// backend/controllers/betController.js
 const asyncHandler = require('express-async-handler');
-const Bet = require('../models/Bet');
-const Group = require('../models/Group');
-const User = require('../models/User');
-const Transaction = require('../models/Transaction');
-const Match = require('../models/Match'); 
-const axios = require('axios');
+const prisma = require('../config/prisma');
 const { addToWhatsappQueue } = require('../services/queueService');
-
 
 // @desc    Place multiple new bets
 // @route   POST /api/bets/multiple
@@ -15,6 +8,7 @@ const { addToWhatsappQueue } = require('../services/queueService');
 const placeMultipleBets = asyncHandler(async (req, res) => {
   try {
     const { betAmount, matchId, groupId, combinations } = req.body;
+    const userId = req.user._id;
 
     if (!Array.isArray(combinations) || combinations.length === 0) {
       res.status(400);
@@ -26,21 +20,26 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
       throw new Error('Maximum 5 combinations allowed per request');
     }
 
-    const group = await Group.findById(groupId);
+    const group = await prisma.group.findUnique({ where: { id: groupId } });
     if (!group) {
       res.status(404);
       throw new Error('Group not found');
     }
 
-    const user = await User.findById(req.user._id).select('countryCode phoneNumber credits firstName');
-    const totalAmount = betAmount * combinations.length;
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    const totalAmount = parseFloat(betAmount) * combinations.length;
 
     if (user.credits < totalAmount) {
       res.status(400);
       throw new Error(`Insufficient credits. You need RS${totalAmount} but only have RS${user.credits}`);
     }
 
-    const match = await Match.findById(matchId);
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
     if (!match) {
       res.status(404);
       throw new Error('Match not found');
@@ -54,11 +53,12 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
       }
     }
 
-    // Fetch existing bets in the group
-    const existingBets = await Bet.find({ group: groupId });
+    const existingBets = await prisma.bet.findMany({ where: { group: groupId } });
 
     const betsToCreate = [];
     const uniqueCombinations = new Set();
+    let updatedMaster = [...(group.CombinationsMaster || [])];
+    let updatedSelected = [...(group.SelectedCombinations || [])];
 
     for (const comb of combinations) {
       const newCombination = comb.split('').sort().join('');
@@ -69,8 +69,7 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
       }
       uniqueCombinations.add(newCombination);
 
-      // Check if combination exists in the master list
-      const isInMasterCombinations = group.CombinationsMaster.includes(newCombination);
+      const isInMasterCombinations = updatedMaster.includes(newCombination);
 
       if (group.betType === 'First Better') {
         const isCombinationTaken = existingBets.some(
@@ -82,7 +81,7 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
         }
       } else if (group.betType === 'Multi Better') {
         const hasUserPlacedSameBet = existingBets.some(
-          (bet) => bet.better.toString() === req.user._id.toString() &&
+          (bet) => bet.better === userId &&
             bet.combination.split('').sort().join('') === newCombination
         );
         if (hasUserPlacedSameBet) {
@@ -92,32 +91,36 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
       }
 
       if (group.betType === 'First Better' && isInMasterCombinations) {
-        group.CombinationsMaster = group.CombinationsMaster.filter(c => c !== newCombination);
-        group.SelectedCombinations.push(newCombination);
+        updatedMaster = updatedMaster.filter(c => c !== newCombination);
+        updatedSelected.push(newCombination);
       }
 
       betsToCreate.push({
-        betAmount,
+        id: require('crypto').randomUUID(),
+        betAmount: parseFloat(betAmount),
         match: matchId,
         group: groupId,
-        better: req.user._id,
+        better: userId,
         combination: comb,
       });
     }
 
-    // Save all changes
-    await group.save();
-    const createdBets = await Bet.insertMany(betsToCreate);
+    await prisma.group.update({
+      where: { id: groupId },
+      data: {
+        CombinationsMaster: updatedMaster,
+        SelectedCombinations: updatedSelected,
+        totalBetAmount: { increment: totalAmount }
+      }
+    });
 
-    // Deduct total amount from user's credits
-    user.credits -= totalAmount;
-    await user.save();
+    await prisma.bet.createMany({ data: betsToCreate });
 
-    // Update group's total bet amount
-    group.totalBetAmount += totalAmount;
-    await group.save();
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { credits: { decrement: totalAmount } }
+    });
 
-    // Format match date for messages
     const matchDate = new Date(match.dateTime).toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       day: 'numeric',
@@ -127,7 +130,6 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
       minute: '2-digit'
     });
 
-    // Prepare Bet Confirmation WhatsApp Message
     const betConfirmationMessage = `
 🎯 **${combinations.length} Bets Placed Successfully!**
 
@@ -140,20 +142,23 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
 🤞 Good luck! May your combinations win!
     `.trim();
 
-    // Create a transaction record
-    const transaction = await Transaction.create({
-      user: user._id,
-      amount: totalAmount,
-      type: 'Debit',
-      description: `RS ${totalAmount.toFixed(2)} Bet placed in ${match.team1} vs ${match.team2} on ${combinations.length} combinations`
+    const txnCode = `TXN-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
+    const transaction = await prisma.transaction.create({
+      data: {
+        id: require('crypto').randomUUID(),
+        transactionId: txnCode,
+        user: userId,
+        amount: totalAmount,
+        type: 'Debit',
+        description: `RS ${totalAmount.toFixed(2)} Bet placed in ${match.team1} vs ${match.team2} on ${combinations.length} combinations`
+      }
     });
 
-    // Prepare Debit Transaction WhatsApp Message
     const debitMessage = `
 💸 **Transaction Alert - Debit**
 
 ➖ *Amount Debited:* RS ${totalAmount.toFixed(2)}
-🏦 *Remaining Balance:* RS ${user.credits.toFixed(2)}
+🏦 *Remaining Balance:* RS ${updatedUser.credits.toFixed(2)}
 📝 *Description:* Bet placed on ${combinations.length} combinations for ${match.team1} vs ${match.team2}
 
 📅 *Date:* ${new Date().toLocaleString('en-IN', {
@@ -168,11 +173,9 @@ const placeMultipleBets = asyncHandler(async (req, res) => {
 Thank you for using FantacyLeague7!
     `.trim();
 
-    // Queue both notifications
     try {
-      await addToWhatsappQueue(user.countryCode, user.phoneNumber, betConfirmationMessage);
-      await addToWhatsappQueue(user.countryCode, user.phoneNumber, debitMessage);
-      console.log(`Bet notifications queued for ${user.phoneNumber}`);
+      await addToWhatsappQueue(user.countryCode || '+91', user.phoneNumber, betConfirmationMessage);
+      await addToWhatsappQueue(user.countryCode || '+91', user.phoneNumber, debitMessage);
     } catch (queueError) {
       console.error(`Failed to queue bet notifications for ${user.phoneNumber}:`, queueError);
     }
@@ -181,9 +184,9 @@ Thank you for using FantacyLeague7!
       success: true,
       message: `${combinations.length} bets placed successfully!`,
       data: {
-        bets: createdBets,
-        newBalance: user.credits,
-        transactionId: transaction._id,
+        bets: betsToCreate.map(b => ({ ...b, _id: b.id })),
+        newBalance: updatedUser.credits,
+        transactionId: transaction.id,
         notificationsQueued: true
       }
     });
@@ -198,27 +201,33 @@ Thank you for using FantacyLeague7!
   }
 });
 
-
 // @desc    Place a new bet
 // @route   POST /api/bets
 // @access  Private/Member
 const placeBet = asyncHandler(async (req, res) => {
   try {
     const { betAmount, matchId, groupId, combination } = req.body;
+    const userId = req.user._id;
 
-    const group = await Group.findById(groupId);
+    const group = await prisma.group.findUnique({ where: { id: groupId } });
     if (!group) {
       res.status(404);
       throw new Error('Group not found');
     }
 
-    const user = await User.findById(req.user._id).select('countryCode phoneNumber credits firstName');
-    if (user.credits < betAmount) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+      res.status(404);
+      throw new Error('User not found');
+    }
+
+    const amount = parseFloat(betAmount);
+    if (user.credits < amount) {
       res.status(400);
       throw new Error('Insufficient credits');
     }
 
-    const match = await Match.findById(matchId);
+    const match = await prisma.match.findUnique({ where: { id: matchId } });
     if (!match) {
       res.status(404);
       throw new Error('Match not found');
@@ -230,14 +239,12 @@ const placeBet = asyncHandler(async (req, res) => {
       throw new Error('Invalid combination');
     }
 
-    // Fetch existing bets in the group
-    const existingBets = await Bet.find({ group: groupId });
-
-    // Normalize the combination for comparison
+    const existingBets = await prisma.bet.findMany({ where: { group: groupId } });
     const newCombination = combination.split('').sort().join('');
+    let updatedMaster = [...(group.CombinationsMaster || [])];
+    let updatedSelected = [...(group.SelectedCombinations || [])];
 
-    // Check if combination exists in the master list
-    const isInMasterCombinations = group.CombinationsMaster.includes(newCombination);
+    const isInMasterCombinations = updatedMaster.includes(newCombination);
 
     if (group.betType === 'First Better') {
       const isCombinationTaken = existingBets.some(
@@ -249,7 +256,7 @@ const placeBet = asyncHandler(async (req, res) => {
       }
     } else if (group.betType === 'Multi Better') {
       const hasUserPlacedSameBet = existingBets.some(
-        (bet) => bet.better.toString() === req.user._id.toString() &&
+        (bet) => bet.better === userId &&
           bet.combination.split('').sort().join('') === newCombination
       );
       if (hasUserPlacedSameBet) {
@@ -259,30 +266,43 @@ const placeBet = asyncHandler(async (req, res) => {
     }
 
     if (group.betType === 'First Better' && isInMasterCombinations) {
-      group.CombinationsMaster = group.CombinationsMaster.filter(c => c !== newCombination);
-      group.SelectedCombinations.push(newCombination);
-      await group.save();
+      updatedMaster = updatedMaster.filter(c => c !== newCombination);
+      updatedSelected.push(newCombination);
+
+      await prisma.group.update({
+        where: { id: groupId },
+        data: {
+          CombinationsMaster: updatedMaster,
+          SelectedCombinations: updatedSelected,
+          totalBetAmount: { increment: amount }
+        }
+      });
+    } else {
+      await prisma.group.update({
+        where: { id: groupId },
+        data: {
+          totalBetAmount: { increment: amount }
+        }
+      });
     }
 
-    // Create and save the bet
-    const bet = await Bet.create({
-      betAmount,
-      match: matchId,
-      group: groupId,
-      better: req.user._id,
-      combination,
+    const betId = require('crypto').randomUUID();
+    const bet = await prisma.bet.create({
+      data: {
+        id: betId,
+        betAmount: amount,
+        match: matchId,
+        group: groupId,
+        better: userId,
+        combination,
+      }
     });
 
-    // Deduct bet amount from user's credits
-    const amount = parseFloat(betAmount);
-    user.credits -= amount;
-    await user.save();
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: { credits: { decrement: amount } }
+    });
 
-    // Update group's total bet amount
-    group.totalBetAmount += amount;
-    await group.save();
-
-    // Format match date for messages
     const matchDate = new Date(match.dateTime).toLocaleString('en-IN', {
       timeZone: 'Asia/Kolkata',
       day: 'numeric',
@@ -292,7 +312,6 @@ const placeBet = asyncHandler(async (req, res) => {
       minute: '2-digit'
     });
 
-    // 1. Prepare Bet Confirmation WhatsApp Message
     const betConfirmationMessage = `
 🎯 **Bet Placed Successfully!**
 
@@ -305,20 +324,23 @@ const placeBet = asyncHandler(async (req, res) => {
 🤞 Good luck! May your combination win!
     `.trim();
 
-    // 2. Create a transaction record
-    const transaction = await Transaction.create({
-      user: user._id,
-      amount: amount,
-      type: 'Debit',
-      description: `RS ${amount.toFixed(2)} Bet placed in ${match.team1} vs ${match.team2} on ${combination}`
+    const txnCode = `TXN-${Date.now()}-${Math.random().toString(36).substring(2,7)}`;
+    const transaction = await prisma.transaction.create({
+      data: {
+        id: require('crypto').randomUUID(),
+        transactionId: txnCode,
+        user: userId,
+        amount: amount,
+        type: 'Debit',
+        description: `RS ${amount.toFixed(2)} Bet placed in ${match.team1} vs ${match.team2} on ${combination}`
+      }
     });
 
-    // 3. Prepare Debit Transaction WhatsApp Message
     const debitMessage = `
 💸 **Transaction Alert - Debit**
 
 ➖ *Amount Debited:* RS ${amount.toFixed(2)}
-🏦 *Remaining Balance:* RS ${user.credits.toFixed(2)}
+🏦 *Remaining Balance:* RS ${updatedUser.credits.toFixed(2)}
 📝 *Description:* Bet placed on ${combination} for ${match.team1} vs ${match.team2}
 
 📅 *Date:* ${new Date().toLocaleString('en-IN', {
@@ -333,23 +355,20 @@ const placeBet = asyncHandler(async (req, res) => {
 Thank you for using FantacyLeague7!
     `.trim();
 
-    // Queue both notifications
     try {
-      await addToWhatsappQueue(user.countryCode, user.phoneNumber, betConfirmationMessage);
-      await addToWhatsappQueue(user.countryCode, user.phoneNumber, debitMessage);
-      console.log(`Bet notifications queued for ${user.phoneNumber}`);
+      await addToWhatsappQueue(user.countryCode || '+91', user.phoneNumber, betConfirmationMessage);
+      await addToWhatsappQueue(user.countryCode || '+91', user.phoneNumber, debitMessage);
     } catch (queueError) {
       console.error(`Failed to queue bet notifications for ${user.phoneNumber}:`, queueError);
-      // Continue even if queuing fails since the bet was placed successfully
     }
 
     res.status(201).json({
       success: true,
       message: "Bet placed successfully!",
       data: {
-        bet,
-        newBalance: user.credits,
-        transactionId: transaction._id,
+        bet: { ...bet, _id: bet.id },
+        newBalance: updatedUser.credits,
+        transactionId: transaction.id,
         notificationsQueued: true
       }
     });
@@ -364,28 +383,51 @@ Thank you for using FantacyLeague7!
   }
 });
 
-
-
 // @desc    Get bets by group
 // @route   GET /api/bets/group/:groupId
 // @access  Private/Member
 const getBetsByGroup = asyncHandler(async (req, res) => {
   const { groupId } = req.params;
 
-  const bets = await Bet.find({ group: groupId }).populate('better', 'firstName lastName phoneNumber');
-  res.json(bets);
+  const bets = await prisma.bet.findMany({
+    where: { group: groupId },
+    include: {
+      User: {
+        select: { id: true, firstName: true, lastName: true, phoneNumber: true }
+      }
+    }
+  });
+
+  const formattedBets = bets.map(b => ({
+    ...b,
+    _id: b.id,
+    better: b.User ? { _id: b.User.id, firstName: b.User.firstName, lastName: b.User.lastName, phoneNumber: b.User.phoneNumber } : null
+  }));
+
+  res.json(formattedBets);
 });
 
 // @desc    Get bets by user
 // @route   GET /api/bets/my-bets
 // @access  Private/Member
 const getMyBets = asyncHandler(async (req, res) => {
-    const bets = await Bet.find({ better: req.user._id })
-        .populate('match', 'team1 team2')
-        .populate('group', 'betType')
-        .sort({ createdAt: -1 });
+  const bets = await prisma.bet.findMany({
+    where: { better: req.user._id },
+    include: {
+      Match: { select: { id: true, team1: true, team2: true } },
+      Group: { select: { id: true, betType: true } }
+    },
+    orderBy: { createdAt: 'desc' }
+  });
 
-    res.json(bets);
+  const formattedBets = bets.map(b => ({
+    ...b,
+    _id: b.id,
+    match: b.Match ? { _id: b.Match.id, team1: b.Match.team1, team2: b.Match.team2 } : null,
+    group: b.Group ? { _id: b.Group.id, betType: b.Group.betType } : null
+  }));
+
+  res.json(formattedBets);
 });
 
 module.exports = { placeBet, placeMultipleBets, getBetsByGroup, getMyBets };

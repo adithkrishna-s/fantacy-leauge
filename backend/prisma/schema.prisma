@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Bet {
+  id          String   @id
+  betAmount   Float
+  match       String
+  group       String
+  better      String
+  score       Float    @default(0)
+  result      String?
+  combination String
+  createdAt   DateTime @default(now())
+  User        User     @relation(fields: [better], references: [id])
+  Group       Group    @relation(fields: [group], references: [id])
+  Match       Match    @relation(fields: [match], references: [id])
+}
+
+model Club {
+  id                       String   @id
+  clubName                 String
+  managerFirstName         String
+  managerLastName          String
+  managerEmail             String   @unique
+  managerPhone             String
+  managerShare             Float
+  adminShare               Float
+  user                     String   @unique
+  createdAt                DateTime @default(now())
+  User_Club_userToUser     User     @relation("Club_userToUser", fields: [user], references: [id])
+  Match                    Match[]
+  User_User_memberOfToClub User[]   @relation("User_memberOfToClub")
+}
+
+model Group {
+  id                   String    @id
+  betType              String    @default("First Better")
+  betAmount            Float
+  minimumIncrement     Float?
+  match                String
+  status               String    @default("Inactive")
+  totalBetAmount       Float     @default(0)
+  winnerShare1         Float
+  winnerShare2         Float
+  winnerShare3         Float
+  adminShare           Float?
+  managerShare         Float?
+  CombinationsMaster   String[]
+  SelectedCombinations String[]
+  createdAt            DateTime  @default(now())
+  Bet                  Bet[]
+  Match                Match     @relation(fields: [match], references: [id])
+  Winners              Winners[]
+}
+
+model Match {
+  id                          String    @id
+  team1                       String
+  team2                       String
+  dateTime                    DateTime
+  status                      String    @default("Inactive")
+  club                        String
+  manager                     String
+  prizeShareStatus            Boolean   @default(false)
+  result                      String?
+  createdAt                   DateTime  @default(now())
+  Bet                         Bet[]
+  Group                       Group[]
+  Club                        Club      @relation(fields: [club], references: [id])
+  Result_Match_resultToResult Result?   @relation("Match_resultToResult", fields: [result], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  Result_Result_matchToMatch  Result[]  @relation("Result_matchToMatch")
+  Winners                     Winners[]
+}
+
+model Result {
+  id                         String   @id
+  match                      String
+  team1Scores                Int[]
+  team2Scores                Int[]
+  createdAt                  DateTime @default(now())
+  Match_Match_resultToResult Match[]  @relation("Match_resultToResult")
+  Match_Result_matchToMatch  Match    @relation("Result_matchToMatch", fields: [match], references: [id])
+}
+
+model Transaction {
+  id            String   @id
+  transactionId String   @unique
+  user          String
+  amount        Float
+  type          String
+  description   String
+  createdAt     DateTime @default(now())
+  User          User     @relation(fields: [user], references: [id])
+}
+
+model User {
+  id                       String        @id
+  firstName                String
+  lastName                 String
+  email                    String?       @unique
+  countryCode              String?
+  phoneNumber              String        @unique
+  password                 String
+  userType                 String        @default("Member")
+  memberOf                 String?
+  credits                  Float         @default(0)
+  referralCode             String?       @unique
+  referredBy               String?
+  referralCount            Int           @default(0)
+  referralEarnings         Float         @default(0)
+  createdAt                DateTime      @default(now())
+  Bet                      Bet[]
+  Club_Club_userToUser     Club?         @relation("Club_userToUser")
+  Transaction              Transaction[]
+  Club_User_memberOfToClub Club?         @relation("User_memberOfToClub", fields: [memberOf], references: [id])
+  User                     User?         @relation("UserToUser", fields: [referredBy], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  other_User               User[]        @relation("UserToUser")
+}
+
+model Winners {
+  id            String   @id
+  match         String
+  group         String
+  firstWinners  Json     @default("[]")
+  secondWinners Json     @default("[]")
+  thirdWinners  Json     @default("[]")
+  createdAt     DateTime @default(now())
+  Group         Group    @relation(fields: [group], references: [id])
+  Match         Match    @relation(fields: [match], references: [id])
+}

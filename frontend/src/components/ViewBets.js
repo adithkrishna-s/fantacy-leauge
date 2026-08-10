@@ -28,14 +28,14 @@ const ViewBets = () => {
       };
 
       const { data: user } = await axios.get(
-        'https://fantasyleague7.com/api/users/profile',
+        'https://fantacyleauge.com/api/users/profile',
         config
       );
       setUserData(user);
 
       if (user.memberOf && user.memberOf._id) {
         const { data: matchData } = await axios.get(
-          `https://fantasyleague7.com/api/matches/club/${user.memberOf._id}`,
+          `https://fantacyleauge.com/api/matches/club/${user.memberOf._id}`,
           config
         );
         setMatches(matchData);
@@ -60,11 +60,11 @@ const ViewBets = () => {
         };
 
         // Fetch bets
-        const { data: betsData } = await axios.get(`https://fantasyleague7.com/api/bets/group/${groupId}`, config);
+        const { data: betsData } = await axios.get(`https://fantacyleauge.com/api/bets/group/${groupId}`, config);
         setBets(betsData);
 
         // Fetch group details
-        const { data: groupData } = await axios.get(`https://fantasyleague7.com/api/groups/${groupId}`, config);
+        const { data: groupData } = await axios.get(`https://fantacyleauge.com/api/groups/${groupId}`, config);
         setGroup(groupData);
 
         setLoading(false);
