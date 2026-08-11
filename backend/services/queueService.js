@@ -34,15 +34,25 @@ whatsappQueue.process(async (job) => {
   const cleanedCountryCode = countryCode.replace('+', '');
   const receiverNumber = `${cleanedCountryCode}${phoneNumber}`;
 
+  // Credentials come from the environment (read at send time so they are
+  // available regardless of dotenv load order). Never hard-code secrets.
+  const appkey = process.env.WHATSAPP_APPKEY;
+  const authkey = process.env.WHATSAPP_AUTHKEY;
+  const apiUrl = process.env.WHATSAPP_API_URL || 'https://websender.eappcloud.in/api/create-message';
+
+  if (!appkey || !authkey) {
+    throw new Error('WhatsApp credentials not configured (set WHATSAPP_APPKEY and WHATSAPP_AUTHKEY)');
+  }
+
   const whatsappData = {
-    appkey: 'fef8a455-a06c-46f4-b2fd-1c71f173f95e',
-    authkey: 'zgWIgQmncta53mAurWa6WPRk7KI3BjMSqiX10HaBPPW67U9p3s',
+    appkey,
+    authkey,
     to: receiverNumber,
     message: message,
   };
 
   try {
-    const response = await axios.post('https://websender.eappcloud.in/api/create-message', whatsappData);
+    const response = await axios.post(apiUrl, whatsappData);
     console.log(`WhatsApp message sent to ${phoneNumber}:`, response.data);
     return true;
   } catch (error) {

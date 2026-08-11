@@ -84,15 +84,20 @@ const addClub = asyncHandler(async (req, res) => {
 🏏 Lead your team to victory and dominate the league!
     `.trim();
 
+    // Credentials come from the environment — never hard-code secrets.
+    const apiUrl = process.env.WHATSAPP_API_URL || 'https://websender.eappcloud.in/api/create-message';
     const whatsappData = {
-      appkey: 'fef8a455-a06c-46f4-b2fd-1c71f173f95e',
-      authkey: 'zgWIgQmncta53mAurWa6WPRk7KI3BjMSqiX10HaBPPW67U9p3s',
+      appkey: process.env.WHATSAPP_APPKEY,
+      authkey: process.env.WHATSAPP_AUTHKEY,
       to: receiverNumber,
       message: message,
     };
 
     try {
-      const whatsappResponse = await axios.post('https://websender.eappcloud.in/api/create-message', whatsappData);
+      if (!whatsappData.appkey || !whatsappData.authkey) {
+        throw new Error('WhatsApp credentials not configured (set WHATSAPP_APPKEY and WHATSAPP_AUTHKEY)');
+      }
+      const whatsappResponse = await axios.post(apiUrl, whatsappData);
       console.log("WhatsApp Message Sent Successfully:", whatsappResponse.data);
     } catch (waError) {
       console.error("Failed to Send WhatsApp Message:", waError.response?.data || waError.message);

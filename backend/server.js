@@ -24,20 +24,28 @@ const { updateMatchStatuses } = require('./scripts/matchStatusUpdater');
 dotenv.config();
 
 // ✅ Middleware for CORS
+// Allowed browser origins. Extend at deploy time via the CORS_ORIGINS env
+// var (comma-separated) instead of editing this list.
 const allowedOrigins = [
   'https://fantacyleauge.com',
   'https://www.fantacyleauge.com',
   'http://localhost:3000',
-  'http://localhost:5000'
+  'http://localhost:5000',
+  ...(process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean)
+    : []),
 ];
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      callback(null, true); // Allow requests during proxying/SSR
+    // Requests with no Origin header (mobile apps, curl, server-to-server,
+    // same-origin navigations) are allowed. Browser cross-origin requests
+    // must come from a whitelisted origin: credentials are enabled, so we
+    // must never reflect an arbitrary origin back.
+    if (!origin || allowedOrigins.includes(origin)) {
+      return callback(null, true);
     }
+    return callback(new Error(`Origin ${origin} is not allowed by CORS`));
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
