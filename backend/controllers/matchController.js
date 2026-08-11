@@ -278,21 +278,56 @@ const deleteMatch = asyncHandler(async (req, res) => {
     throw new Error('Not authorized to delete this match');
   }
 
-  // Cascade delete the match and everything under it in one transaction. Order
-  // matters: detach the match's own result pointer first (Match.result is a
-  // NoAction FK), then remove bets and winner records (which reference the
-  // groups), then the groups and results, then the match itself.
-  // NOTE: credits already spent on those bets are NOT refunded.
-  await prisma.$transaction([
-    prisma.match.update({ where: { id: matchId }, data: { result: null } }),
-    prisma.bet.deleteMany({ where: { match: matchId } }),
-    prisma.winners.deleteMany({ where: { match: matchId } }),
-    prisma.group.deleteMany({ where: { match: matchId } }),
-    prisma.result.deleteMany({ where: { match: matchId } }),
-    prisma.match.delete({ where: { id: matchId } }),
-  ]);
+  // Cascade delete the match and refund any OPEN (unsettled) bets. A bet is
+  // open when its result is still null — settled Win/Loss bets were already
+  // paid out during prize distribution, so their stakes must not be refunded.
+  // Order matters: refund first, then detach the match's own result pointer
+  // (Match.result is a NoAction FK), then remove bets and winner records (which
+  // reference the groups), then the groups and results, then the match itself.
+  let totalRefunded = 0;
+  let refundedBets = 0;
 
-  res.json({ message: 'Match and its groups, bets and results were deleted successfully' });
+  await prisma.$transaction(async (tx) => {
+    const openBets = await tx.bet.findMany({
+      where: { match: matchId, result: null },
+      select: { better: true, betAmount: true },
+    });
+
+    const refundByUser = {};
+    for (const bet of openBets) {
+      refundByUser[bet.better] = (refundByUser[bet.better] || 0) + bet.betAmount;
+    }
+    refundedBets = openBets.length;
+
+    for (const [userId, amount] of Object.entries(refundByUser)) {
+      if (amount <= 0) continue;
+      totalRefunded += amount;
+      await tx.user.update({ where: { id: userId }, data: { credits: { increment: amount } } });
+      await tx.transaction.create({
+        data: {
+          id: require('crypto').randomUUID(),
+          transactionId: `REFUND-${require('crypto').randomUUID()}`,
+          user: userId,
+          amount,
+          type: 'Credit',
+          description: `Refund for open bet(s) on deleted match ${match.team1} vs ${match.team2}`,
+        },
+      });
+    }
+
+    await tx.match.update({ where: { id: matchId }, data: { result: null } });
+    await tx.bet.deleteMany({ where: { match: matchId } });
+    await tx.winners.deleteMany({ where: { match: matchId } });
+    await tx.group.deleteMany({ where: { match: matchId } });
+    await tx.result.deleteMany({ where: { match: matchId } });
+    await tx.match.delete({ where: { id: matchId } });
+  }, { maxWait: 10000, timeout: 30000 });
+
+  res.json({
+    message: 'Match and its groups, bets and results were deleted successfully',
+    refundedBets,
+    totalRefunded,
+  });
 });
 
 // @desc    Get all matches for a club (for members)

@@ -125,16 +125,50 @@ const deleteGroup = asyncHandler(async (req, res) => {
     throw new Error('Group not found');
   }
 
-  // Cascade delete: remove the group's bets and winner records first, then the
-  // group itself, all in one transaction so a failure leaves nothing partially
-  // deleted. NOTE: credits already spent on those bets are NOT refunded.
-  await prisma.$transaction([
-    prisma.bet.deleteMany({ where: { group: groupId } }),
-    prisma.winners.deleteMany({ where: { group: groupId } }),
-    prisma.group.delete({ where: { id: groupId } }),
-  ]);
+  // Cascade delete the group and refund any OPEN (unsettled) bets. A bet is
+  // open when its result is still null — settled Win/Loss bets were already
+  // paid out during prize distribution, so their stakes must not be refunded.
+  let totalRefunded = 0;
+  let refundedBets = 0;
 
-  res.json({ message: 'Group and its bets were deleted successfully' });
+  await prisma.$transaction(async (tx) => {
+    const openBets = await tx.bet.findMany({
+      where: { group: groupId, result: null },
+      select: { better: true, betAmount: true },
+    });
+
+    const refundByUser = {};
+    for (const bet of openBets) {
+      refundByUser[bet.better] = (refundByUser[bet.better] || 0) + bet.betAmount;
+    }
+    refundedBets = openBets.length;
+
+    for (const [userId, amount] of Object.entries(refundByUser)) {
+      if (amount <= 0) continue;
+      totalRefunded += amount;
+      await tx.user.update({ where: { id: userId }, data: { credits: { increment: amount } } });
+      await tx.transaction.create({
+        data: {
+          id: require('crypto').randomUUID(),
+          transactionId: `REFUND-${require('crypto').randomUUID()}`,
+          user: userId,
+          amount,
+          type: 'Credit',
+          description: 'Refund for open bet(s) on a deleted group',
+        },
+      });
+    }
+
+    await tx.bet.deleteMany({ where: { group: groupId } });
+    await tx.winners.deleteMany({ where: { group: groupId } });
+    await tx.group.delete({ where: { id: groupId } });
+  }, { maxWait: 10000, timeout: 30000 });
+
+  res.json({
+    message: 'Group deleted successfully',
+    refundedBets,
+    totalRefunded,
+  });
 });
 
 // @desc    Get a single group by ID
