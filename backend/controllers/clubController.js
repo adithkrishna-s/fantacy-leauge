@@ -196,12 +196,31 @@ const updateClub = asyncHandler(async (req, res) => {
 // @route   DELETE /api/clubs/:id
 // @access  Private/Admin
 const deleteClub = asyncHandler(async (req, res) => {
-  const club = await prisma.club.findUnique({ where: { id: req.params.id } });
+  const clubId = req.params.id;
+
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
   if (!club) {
     res.status(404);
     throw new Error("Club not found");
   }
-  await prisma.club.delete({ where: { id: req.params.id } });
+
+  // A club can't be deleted while other rows still reference it (the DB
+  // enforces this as a foreign-key restriction). Check first and return a
+  // clear message instead of letting Prisma throw an opaque 500.
+  const [matchCount, memberCount] = await Promise.all([
+    prisma.match.count({ where: { club: clubId } }),
+    prisma.user.count({ where: { memberOf: clubId } }),
+  ]);
+
+  if (matchCount > 0 || memberCount > 0) {
+    const parts = [];
+    if (matchCount > 0) parts.push(`${matchCount} match${matchCount === 1 ? "" : "es"}`);
+    if (memberCount > 0) parts.push(`${memberCount} member${memberCount === 1 ? "" : "s"}`);
+    res.status(409);
+    throw new Error(`Cannot delete "${club.clubName}" while it still has ${parts.join(" and ")}. Remove them first, then delete the club.`);
+  }
+
+  await prisma.club.delete({ where: { id: clubId } });
   res.json({ message: "Club deleted successfully" });
 });
 

@@ -49,6 +49,10 @@ const ManageClubs = () => {
       setClubs(clubs.filter((club) => club._id !== clubId));
     } catch (error) {
       console.error("Error deleting club:", error);
+      const message =
+        error.response?.data?.message ||
+        "Failed to delete club. Please try again.";
+      window.alert(message);
     }
   };
 
