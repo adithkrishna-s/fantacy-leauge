@@ -377,13 +377,16 @@ const approveCredits = asyncHandler(async (req, res) => {
 
       bets.sort((a, b) => b.score - a.score);
 
-      const firstPlaceScore = bets[0]?.score || 0;
-      const secondPlaceScore = bets.find((bet) => bet.score < firstPlaceScore)?.score || 0;
-      const thirdPlaceScore = bets.find((bet) => bet.score < secondPlaceScore)?.score || 0;
+      // Rank by DISTINCT score so a missing tier stays empty instead of
+      // collapsing to 0. The old `|| 0` fallback meant that when fewer than
+      // three distinct scores existed (e.g. everyone tied), the 2nd/3rd place
+      // scores became 0 and any bet that genuinely scored 0 was paid a prize.
+      const distinctScores = [...new Set(bets.map((bet) => bet.score))].sort((a, b) => b - a);
+      const [firstPlaceScore, secondPlaceScore, thirdPlaceScore] = distinctScores;
 
-      const firstWinners = bets.filter((bet) => bet.score === firstPlaceScore);
-      const secondWinners = bets.filter((bet) => bet.score === secondPlaceScore);
-      const thirdWinners = bets.filter((bet) => bet.score === thirdPlaceScore);
+      const firstWinners = firstPlaceScore !== undefined ? bets.filter((bet) => bet.score === firstPlaceScore) : [];
+      const secondWinners = secondPlaceScore !== undefined ? bets.filter((bet) => bet.score === secondPlaceScore) : [];
+      const thirdWinners = thirdPlaceScore !== undefined ? bets.filter((bet) => bet.score === thirdPlaceScore) : [];
 
       const totalBetAmount = group.totalBetAmount || 0;
       const firstPrize = (totalBetAmount * (group.winnerShare1 || 0)) / 100;
@@ -399,13 +402,13 @@ const approveCredits = asyncHandler(async (req, res) => {
       resultsMessage += `
 
 🔹 *Group ${groupNumber} Results:*
-🥇 *1st Place (Score: ${firstPlaceScore}):*
+🥇 *1st Place (Score: ${firstPlaceScore ?? '-'}):*
        ${firstWinners.length > 0 ? formatWinners(firstWinners, firstPrize / firstWinners.length) : 'No winners'}
-       
-🥈 *2nd Place (Score: ${secondPlaceScore}):*
+
+🥈 *2nd Place (Score: ${secondPlaceScore ?? '-'}):*
        ${secondWinners.length > 0 ? formatWinners(secondWinners, secondPrize / secondWinners.length) : 'No winners'}
-       
-🥉 *3rd Place (Score: ${thirdPlaceScore}):*
+
+🥉 *3rd Place (Score: ${thirdPlaceScore ?? '-'}):*
        ${thirdWinners.length > 0 ? formatWinners(thirdWinners, thirdPrize / thirdWinners.length) : 'No winners'}
       `.trim();
 
