@@ -55,18 +55,16 @@ const Register = () => {
       data.phoneNumber = data.phoneNumber.replace(/\s/g, '');
       
       const response = await axios.post(
-        '/api/users/register', 
-        data, 
-        { withCredentials: true }
+        '/api/users/register',
+        data
       );
       
       toast.success('Registration Successful');
       
       // Automatically log in the user after registration
       const loginResponse = await axios.post(
-        '/api/users/login', 
-        { phoneNumber: data.phoneNumber, password: data.password }, 
-        { withCredentials: true }
+        '/api/users/login',
+        { phoneNumber: data.phoneNumber, password: data.password }
       );
 
       const userInfo = {

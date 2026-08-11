@@ -14,9 +14,8 @@ const Login = () => {
     e.preventDefault();
     try {
       const cleanedPhoneNumber = phoneNumber.replace(/\s/g, ''); // Remove spaces from phone number
-      const { data } = await axios.post('/api/users/login', 
-        { phoneNumber: cleanedPhoneNumber, password }, 
-        { withCredentials: true }
+      const { data } = await axios.post('/api/users/login',
+        { phoneNumber: cleanedPhoneNumber, password }
       );
 
       const userInfo = {
