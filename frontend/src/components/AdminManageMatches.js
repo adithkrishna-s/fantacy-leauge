@@ -54,8 +54,11 @@ const AdminManageMatches = () => {
           },
         };
 
-        await axios.delete(`https://fantacyleauge.com/api/matches/${matchId}`, config);
-        toast.success('Match deleted successfully!');
+        const { data } = await axios.delete(`https://fantacyleauge.com/api/matches/${matchId}`, config);
+        const refundNote = data?.refundedBets > 0
+          ? ` Refunded RS ${Number(data.totalRefunded || 0).toFixed(2)} across ${data.refundedBets} open bet${data.refundedBets === 1 ? '' : 's'}.`
+          : '';
+        toast.success(`Match deleted successfully!${refundNote}`);
         setMatches(matches.filter((match) => match._id !== matchId));
       } catch (error) {
         toast.error(error.response?.data?.message || 'Failed to delete match');

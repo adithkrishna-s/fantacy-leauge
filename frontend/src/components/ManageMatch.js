@@ -50,9 +50,12 @@ const ManageMatch = () => {
           },
         };
 
-        await axios.delete(`https://fantacyleauge.com/api/groups/${groupId}`, config);
+        const { data } = await axios.delete(`https://fantacyleauge.com/api/groups/${groupId}`, config);
         setGroups(groups.filter(group => group._id !== groupId));
-        toast.success('Group deleted successfully');
+        const refundNote = data?.refundedBets > 0
+          ? ` Refunded RS ${Number(data.totalRefunded || 0).toFixed(2)} across ${data.refundedBets} open bet${data.refundedBets === 1 ? '' : 's'}.`
+          : '';
+        toast.success(`Group deleted successfully.${refundNote}`);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Failed to delete group');
       }
