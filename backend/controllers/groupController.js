@@ -125,23 +125,16 @@ const deleteGroup = asyncHandler(async (req, res) => {
     throw new Error('Group not found');
   }
 
-  // A group can't be deleted while bets or winner records still reference it
-  // (the DB enforces this). Return a clear message instead of an opaque 500.
-  const [betCount, winnerCount] = await Promise.all([
-    prisma.bet.count({ where: { group: groupId } }),
-    prisma.winners.count({ where: { group: groupId } }),
+  // Cascade delete: remove the group's bets and winner records first, then the
+  // group itself, all in one transaction so a failure leaves nothing partially
+  // deleted. NOTE: credits already spent on those bets are NOT refunded.
+  await prisma.$transaction([
+    prisma.bet.deleteMany({ where: { group: groupId } }),
+    prisma.winners.deleteMany({ where: { group: groupId } }),
+    prisma.group.delete({ where: { id: groupId } }),
   ]);
 
-  if (betCount > 0 || winnerCount > 0) {
-    const parts = [];
-    if (betCount > 0) parts.push(`${betCount} bet${betCount === 1 ? '' : 's'}`);
-    if (winnerCount > 0) parts.push(`${winnerCount} winner record${winnerCount === 1 ? '' : 's'}`);
-    res.status(409);
-    throw new Error(`Cannot delete this group while it still has ${parts.join(' and ')}. Remove them first, then delete the group.`);
-  }
-
-  await prisma.group.delete({ where: { id: groupId } });
-  res.json({ message: 'Group deleted successfully' });
+  res.json({ message: 'Group and its bets were deleted successfully' });
 });
 
 // @desc    Get a single group by ID

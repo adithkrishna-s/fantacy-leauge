@@ -278,28 +278,21 @@ const deleteMatch = asyncHandler(async (req, res) => {
     throw new Error('Not authorized to delete this match');
   }
 
-  // A match can't be deleted while groups, bets, winner records or results
-  // still reference it (the DB enforces this). Return a clear message instead
-  // of an opaque 500 foreign-key error.
-  const [groupCount, betCount, winnerCount, resultCount] = await Promise.all([
-    prisma.group.count({ where: { match: matchId } }),
-    prisma.bet.count({ where: { match: matchId } }),
-    prisma.winners.count({ where: { match: matchId } }),
-    prisma.result.count({ where: { match: matchId } }),
+  // Cascade delete the match and everything under it in one transaction. Order
+  // matters: detach the match's own result pointer first (Match.result is a
+  // NoAction FK), then remove bets and winner records (which reference the
+  // groups), then the groups and results, then the match itself.
+  // NOTE: credits already spent on those bets are NOT refunded.
+  await prisma.$transaction([
+    prisma.match.update({ where: { id: matchId }, data: { result: null } }),
+    prisma.bet.deleteMany({ where: { match: matchId } }),
+    prisma.winners.deleteMany({ where: { match: matchId } }),
+    prisma.group.deleteMany({ where: { match: matchId } }),
+    prisma.result.deleteMany({ where: { match: matchId } }),
+    prisma.match.delete({ where: { id: matchId } }),
   ]);
 
-  if (groupCount > 0 || betCount > 0 || winnerCount > 0 || resultCount > 0) {
-    const parts = [];
-    if (groupCount > 0) parts.push(`${groupCount} group${groupCount === 1 ? '' : 's'}`);
-    if (betCount > 0) parts.push(`${betCount} bet${betCount === 1 ? '' : 's'}`);
-    if (winnerCount > 0) parts.push(`${winnerCount} winner record${winnerCount === 1 ? '' : 's'}`);
-    if (resultCount > 0) parts.push(`${resultCount} result${resultCount === 1 ? '' : 's'}`);
-    res.status(409);
-    throw new Error(`Cannot delete this match while it still has ${parts.join(', ')}. Remove them first, then delete the match.`);
-  }
-
-  await prisma.match.delete({ where: { id: matchId } });
-  res.json({ message: 'Match deleted successfully' });
+  res.json({ message: 'Match and its groups, bets and results were deleted successfully' });
 });
 
 // @desc    Get all matches for a club (for members)
