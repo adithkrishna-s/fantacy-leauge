@@ -1,7 +1,7 @@
 const asyncHandler = require("express-async-handler");
 const prisma = require("../config/prisma");
 const bcrypt = require("bcryptjs");
-const axios = require('axios');
+const { addToWhatsappQueue } = require('../services/queueService');
 
 // @desc    Add a new club
 // @route   POST /api/clubs
@@ -64,12 +64,8 @@ const addClub = asyncHandler(async (req, res) => {
 
     console.log("Club created successfully!", club);
 
-    // Remove '+' from countryCode if it exists
-    const cleanedCountryCode = countryCode.replace('+', '');
-
-    // Send WhatsApp Message
-    const receiverNumber = `${cleanedCountryCode}${managerPhone}`;
-
+    // Notify the new manager. WhatsApp notifications are currently disabled, so
+    // addToWhatsappQueue is a no-op shim (see services/queueService.js).
     const message = `
 ### **1️⃣ 🎉 Welcome to FantasyLeague7!**
 
@@ -84,24 +80,7 @@ const addClub = asyncHandler(async (req, res) => {
 🏏 Lead your team to victory and dominate the league!
     `.trim();
 
-    // Credentials come from the environment — never hard-code secrets.
-    const apiUrl = process.env.WHATSAPP_API_URL || 'https://websender.eappcloud.in/api/create-message';
-    const whatsappData = {
-      appkey: process.env.WHATSAPP_APPKEY,
-      authkey: process.env.WHATSAPP_AUTHKEY,
-      to: receiverNumber,
-      message: message,
-    };
-
-    try {
-      if (!whatsappData.appkey || !whatsappData.authkey) {
-        throw new Error('WhatsApp credentials not configured (set WHATSAPP_APPKEY and WHATSAPP_AUTHKEY)');
-      }
-      const whatsappResponse = await axios.post(apiUrl, whatsappData);
-      console.log("WhatsApp Message Sent Successfully:", whatsappResponse.data);
-    } catch (waError) {
-      console.error("Failed to Send WhatsApp Message:", waError.response?.data || waError.message);
-    }
+    await addToWhatsappQueue(countryCode, managerPhone, message);
 
     res.status(201).json({ message: "Club added successfully!", club: { ...club, _id: club.id } });
   } catch (error) {
