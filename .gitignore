@@ -92,7 +92,8 @@ out/
 
 # Gatsby files
 .cache/
-public
+# NOTE: the bare "public" ignore (Gatsby build output) was removed — this is a
+# Create React App project where frontend/public is tracked source.
 
 # Storybook build outputs
 storybook-static
