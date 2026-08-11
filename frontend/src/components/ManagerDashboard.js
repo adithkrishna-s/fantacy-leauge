@@ -75,7 +75,7 @@ const ManagerDashboard = () => {
       <ToastContainer />
       <img id="Leftbanner1" src="/assets/ManagerBanner.png" alt="MemberBanner" />
 
-      <div class="d-flex justify-content-center align-items-center MainDataTitle my-4" bis_skin_checked="1"><h1>Your Matches ({club.clubName})</h1></div>
+      <div className="d-flex justify-content-center align-items-center MainDataTitle my-4"><h1>Your Matches ({club.clubName})</h1></div>
       
       {loading ? (
         <p>Loading...</p>
@@ -84,7 +84,7 @@ const ManagerDashboard = () => {
           <p className="text-center my-4">No Matches Added To Your Club.</p>
 
           <div className="ManageBtn W-100 d-flex justify-content-center">
-            <button class="bet-button" onClick={() => navigate(`/manager-dashboard/add-match`) }>Add Match</button>
+            <button className="bet-button" onClick={() => navigate(`/manager-dashboard/add-match`) }>Add Match</button>
           </div>
         </>
 
@@ -115,7 +115,7 @@ const ManagerDashboard = () => {
         </div>
 
         <div className="ManageBtn W-100 d-flex justify-content-center">
-          <button class="bet-button" onClick={() => navigate(`/manager-dashboard/Manage-Matches`) }>Add/Manage Matches</button>
+          <button className="bet-button" onClick={() => navigate(`/manager-dashboard/Manage-Matches`) }>Add/Manage Matches</button>
         </div>
       </>
       )}
