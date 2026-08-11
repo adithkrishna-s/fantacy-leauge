@@ -1,5 +1,4 @@
 const express = require('express');
-const Match = require('../models/Match');
 const { addMatch, getMatches, updateMatch, deleteMatch, updatePlayers, getMatchById, getMatchesByClub, approveCredits } = require('../controllers/matchController');
 const { admin, protect, manager, member, managerOrMember, managerOrAdmin, managerOrAdminOrMember } = require('../middleware/authMiddleware');
 

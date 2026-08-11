@@ -2,7 +2,6 @@
 const express = require('express');
 const app = express();
 const dotenv = require('dotenv');
-const connectDB = require('./config/db');
 const userRoutes = require('./routes/userRoutes');
 const clubRoutes = require("./routes/clubRoutes");
 const matchRoutes = require("./routes/matchRoutes");
@@ -23,9 +22,6 @@ const { updateMatchStatuses } = require('./scripts/matchStatusUpdater');
 
 // Load environment variables
 dotenv.config();
-
-// Connect to Database
-connectDB();
 
 // ✅ Middleware for CORS
 const allowedOrigins = [
