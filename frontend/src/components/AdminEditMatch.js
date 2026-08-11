@@ -24,7 +24,7 @@ const AdminEditMatch = () => {
           },
         };
 
-        const { data } = await axios.get(`https://fantacyleauge.com/api/matches/${id}`, config);
+        const { data } = await axios.get(`/api/matches/${id}`, config);
         setTeam1(data.team1);
         setTeam2(data.team2);
         setDateTime(new Date(data.dateTime).toISOString().slice(0, 16));
@@ -50,13 +50,13 @@ const AdminEditMatch = () => {
       const utcDateTime = new Date(dateTime).toISOString();
 
       await axios.put(
-        `https://fantacyleauge.com/api/matches/${id}`,
+        `/api/matches/${id}`,
         { team1, team2, dateTime: utcDateTime, status },
         config
       );
 
       // Fetch match details again to get the club ID
-      const matchResponse = await axios.get(`https://fantacyleauge.com/api/matches/${id}`, config);
+      const matchResponse = await axios.get(`/api/matches/${id}`, config);
       const clubId = matchResponse.data.club._id; // Assuming 'club' contains the club ID
 
       toast.success('Match updated successfully!');

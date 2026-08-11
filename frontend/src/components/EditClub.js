@@ -27,7 +27,7 @@ const EditClub = () => {
         };
 
 
-        const { data } = await axios.get(`https://fantacyleauge.com/api/clubs/${id}`, config);
+        const { data } = await axios.get(`/api/clubs/${id}`, config);
         setClubData(data);
       } catch (error) {
         console.error("Error fetching club:", error);
@@ -50,7 +50,7 @@ const EditClub = () => {
                 'Authorization': `Bearer ${userInfo.token}`
             }
         };
-      await axios.put(`https://fantacyleauge.com/api/clubs/${id}`, clubData, config);
+      await axios.put(`/api/clubs/${id}`, clubData, config);
       toast.success("Club updated successfully!");
       navigate("/admin-dashboard/manage-club");
     } catch (error) {

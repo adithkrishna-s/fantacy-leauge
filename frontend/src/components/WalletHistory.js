@@ -27,14 +27,14 @@ const WalletHistory = () => {
       };
 
       const { data: user } = await axios.get(
-        'https://fantacyleauge.com/api/users/profile',
+        '/api/users/profile',
         config
       );
       setUserData(user);
 
       if (user.memberOf && user.memberOf._id) {
         const { data: matchData } = await axios.get(
-          `https://fantacyleauge.com/api/matches/club/${user.memberOf._id}`,
+          `/api/matches/club/${user.memberOf._id}`,
           config
         );
         setMatches(matchData);
@@ -55,7 +55,7 @@ const WalletHistory = () => {
           Authorization: `Bearer ${userInfo.token}`,
         },
       };
-      const { data } = await axios.get(`https://fantacyleauge.com/api/transactions/${userInfo._id}`, config);
+      const { data } = await axios.get(`/api/transactions/${userInfo._id}`, config);
       setTransactions(data.reverse()); // Sort by most recent transaction
       setLoading(false);
     } catch (error) {

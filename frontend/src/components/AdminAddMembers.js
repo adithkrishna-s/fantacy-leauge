@@ -44,14 +44,14 @@ const AdminAddMembers = () => {
 
       if (userType === 'Existing User') {
         const response = await axios.post(
-          `https://fantacyleauge.com/api/users/add-member/${clubId}`,
+          `/api/users/add-member/${clubId}`,
           { phoneNumber },
           config
         );
         toast.success(response.data.message);
       } else {
         const response = await axios.post(
-          `https://fantacyleauge.com/api/users/register-member/${clubId}`,
+          `/api/users/register-member/${clubId}`,
           { firstName, lastName, email, phoneNumber, password, countryCode },
           config
         );

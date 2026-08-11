@@ -1,9 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+
+// All API calls use relative paths like `/api/...`. This base URL decides which
+// backend they hit: set REACT_APP_API_URL (e.g. http://localhost:5001) in a
+// .env.development.local to point at a local backend during development;
+// otherwise it defaults to production.
+axios.defaults.baseURL = process.env.REACT_APP_API_URL || 'https://fantacyleauge.com';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(

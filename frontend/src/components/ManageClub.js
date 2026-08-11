@@ -24,7 +24,7 @@ const ManageClubs = () => {
             },
         };
         try {
-            const response = await axios.get("https://fantacyleauge.com/api/clubs", config);
+            const response = await axios.get("/api/clubs", config);
             setClubs(response.data);
             } catch (error) {
             console.error("Error fetching clubs:", error);
@@ -45,7 +45,7 @@ const ManageClubs = () => {
             }
         };
 
-      await axios.delete(`https://fantacyleauge.com/api/clubs/${clubId}`, config);
+      await axios.delete(`/api/clubs/${clubId}`, config);
       setClubs(clubs.filter((club) => club._id !== clubId));
     } catch (error) {
       console.error("Error deleting club:", error);

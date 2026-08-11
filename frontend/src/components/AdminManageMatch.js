@@ -21,11 +21,11 @@ const AdminManageMatch = () => {
           },
         };
 
-        const { data: groups } = await axios.get(`https://fantacyleauge.com/api/groups/match/${matchId}`, config);
+        const { data: groups } = await axios.get(`/api/groups/match/${matchId}`, config);
 
         // Fetch bets for each group
         const groupsWithBets = await Promise.all(groups.map(async (group) => {
-          const { data: bets } = await axios.get(`https://fantacyleauge.com/api/bets/group/${group._id}`, config);
+          const { data: bets } = await axios.get(`/api/bets/group/${group._id}`, config);
           return { ...group, hasBets: bets.length > 0 };
         }));
 
@@ -50,7 +50,7 @@ const AdminManageMatch = () => {
           },
         };
 
-        const { data } = await axios.delete(`https://fantacyleauge.com/api/groups/${groupId}`, config);
+        const { data } = await axios.delete(`/api/groups/${groupId}`, config);
         setGroups(groups.filter(group => group._id !== groupId));
         const refundNote = data?.refundedBets > 0
           ? ` Refunded RS ${Number(data.totalRefunded || 0).toFixed(2)} across ${data.refundedBets} open bet${data.refundedBets === 1 ? '' : 's'}.`

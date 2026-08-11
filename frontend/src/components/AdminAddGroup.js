@@ -83,7 +83,7 @@ const AdminAddGroup = () => {
       };
 
       await axios.post(
-        'https://fantacyleauge.com/api/groups',
+        '/api/groups',
         {
           betType,
           betAmount,

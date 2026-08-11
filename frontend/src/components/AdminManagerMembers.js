@@ -28,7 +28,7 @@ const AdminManageMembers = () => {
         },
       };
 
-      const response = await axios.get(`https://fantacyleauge.com/api/users/members/${clubId}`, config);
+      const response = await axios.get(`/api/users/members/${clubId}`, config);
       setMembers(response.data);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to fetch members');
@@ -52,7 +52,7 @@ const AdminManageMembers = () => {
       };
 
       await axios.put(
-        `https://fantacyleauge.com/api/users/add-credit/${selectedMemberId}`,
+        `/api/users/add-credit/${selectedMemberId}`,
         { creditAmount: parseFloat(creditAmount) },
         config
       );
@@ -97,7 +97,7 @@ const AdminManageMembers = () => {
       }
 
       await axios.put(
-        `https://fantacyleauge.com/api/users/deduct-credit/${selectedMemberId}`,
+        `/api/users/deduct-credit/${selectedMemberId}`,
         { creditAmount: parseFloat(creditAmount) },
         config
       );
@@ -123,7 +123,7 @@ const AdminManageMembers = () => {
           },
         };
 
-        await axios.put(`https://fantacyleauge.com/api/users/remove-member/${memberId}`, {}, config);
+        await axios.put(`/api/users/remove-member/${memberId}`, {}, config);
         toast.success('Member removed successfully');
         fetchMembers(); // Refresh the list
       } catch (error) {

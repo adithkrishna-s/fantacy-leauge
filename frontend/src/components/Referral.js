@@ -22,7 +22,7 @@ const Referral = () => {
           },
         };
 
-        const { data } = await axios.get('https://fantacyleauge.com/api/users/referral-stats', config);
+        const { data } = await axios.get('/api/users/referral-stats', config);
         setReferralData(data);
       } catch (error) {
         toast.error(error.response?.data?.message || 'Failed to fetch referral data');
@@ -51,7 +51,7 @@ const Referral = () => {
         const referralLink = `https://fantacyleauge.com/register?ref=${referralData.referralCode}`;
         
         await axios.post(
-            'https://fantacyleauge.com/api/users/send-whatsapp', 
+            '/api/users/send-whatsapp', 
             {
             phoneNumber: phoneNumber.replace(/\s/g, '')
             },

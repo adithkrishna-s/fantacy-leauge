@@ -22,13 +22,13 @@ const ManagerLayout = ({ children }) => {
 
         // Fetch user details
         const { data: user } = await axios.get(
-          "https://fantacyleauge.com/api/users/profile",
+          "/api/users/profile",
           config
         );
 
         // Fetch all clubs
         const { data: clubs } = await axios.get(
-          "https://fantacyleauge.com/api/clubs",
+          "/api/clubs",
           config
         );
 

@@ -27,14 +27,14 @@ const MyBets = () => {
       };
 
       const { data: user } = await axios.get(
-        'https://fantacyleauge.com/api/users/profile',
+        '/api/users/profile',
         config
       );
       setUserData(user);
 
       if (user.memberOf && user.memberOf._id) {
         const { data: matchData } = await axios.get(
-          `https://fantacyleauge.com/api/matches/club/${user.memberOf._id}`,
+          `/api/matches/club/${user.memberOf._id}`,
           config
         );
         setMatches(matchData);
@@ -61,7 +61,7 @@ const MyBets = () => {
         },
       };
 
-      const { data } = await axios.get('https://fantacyleauge.com/api/bets/my-bets', config);
+      const { data } = await axios.get('/api/bets/my-bets', config);
       setBets(data);
       setLoading(false);
     } catch (error) {
@@ -79,7 +79,7 @@ const MyBets = () => {
         },
       };
 
-      const { data } = await axios.get('https://fantacyleauge.com/api/winners/my-winnings', config);
+      const { data } = await axios.get('/api/winners/my-winnings', config);
       setWinners(data);
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to load winnings');

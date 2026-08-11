@@ -78,7 +78,7 @@ const AdminEditGroup = () => {
           },
         };
 
-        const { data } = await axios.get(`https://fantacyleauge.com/api/groups/${groupId}`, config);
+        const { data } = await axios.get(`/api/groups/${groupId}`, config);
         setBetType(data.betType);
         setBetAmount(data.betAmount);
         setMinimumIncrement(data.minimumIncrement || '');
@@ -111,7 +111,7 @@ const AdminEditGroup = () => {
       };
 
       await axios.put(
-        `https://fantacyleauge.com/api/groups/${groupId}`,
+        `/api/groups/${groupId}`,
         {
           betType,
           betAmount,

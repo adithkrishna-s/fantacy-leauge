@@ -25,7 +25,7 @@ const Header = () => {
             },
           };
 
-          const { data } = await axios.get(`https://fantacyleauge.com/api/users/userdetails/${userInfoData._id}`, config);
+          const { data } = await axios.get(`/api/users/userdetails/${userInfoData._id}`, config);
           setCredits(data.credits);
         } catch (error) {
           console.error("Error fetching user credits", error);

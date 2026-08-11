@@ -43,14 +43,14 @@ const PlaceBet = () => {
       };
 
       const { data: user } = await axios.get(
-        'https://fantacyleauge.com/api/users/profile',
+        '/api/users/profile',
         config
       );
       setUserData(user);
 
       if (user.memberOf && user.memberOf._id) {
         const { data: matchData } = await axios.get(
-          `https://fantacyleauge.com/api/matches/club/${user.memberOf._id}`,
+          `/api/matches/club/${user.memberOf._id}`,
           config
         );
         setMatches(matchData);
@@ -72,9 +72,9 @@ const PlaceBet = () => {
         },
       };
 
-      const { data: groupData } = await axios.get(`https://fantacyleauge.com/api/groups/${groupId}`, config);
+      const { data: groupData } = await axios.get(`/api/groups/${groupId}`, config);
       const { data: matchData } = await axios.get(
-        `https://fantacyleauge.com/api/matches/${groupData.match._id}`,
+        `/api/matches/${groupData.match._id}`,
         config
       );
 
@@ -165,12 +165,12 @@ const PlaceBet = () => {
         },
       };
   
-      const { data: bets } = await axios.get(`https://fantacyleauge.com/api/bets/group/${groupId}`, config);
+      const { data: bets } = await axios.get(`/api/bets/group/${groupId}`, config);
       const totalAmount = group.betAmount * combinations.length;
 
       // Check user balance
       const { data: user } = await axios.get(
-        'https://fantacyleauge.com/api/users/profile',
+        '/api/users/profile',
         config
       );
       
@@ -202,7 +202,7 @@ const PlaceBet = () => {
   
       // Place all bets
       await axios.post(
-        'https://fantacyleauge.com/api/bets/multiple',
+        '/api/bets/multiple',
         {
           betAmount: group.betAmount,
           matchId: group.match._id,

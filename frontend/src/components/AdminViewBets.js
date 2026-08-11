@@ -23,10 +23,10 @@ const AdminViewBets = () => {
         };
 
         // Fetch group details
-        const { data: groupData } = await axios.get(`https://fantacyleauge.com/api/groups/${groupId}`, config);
+        const { data: groupData } = await axios.get(`/api/groups/${groupId}`, config);
         setGroup(groupData);
 
-        const { data } = await axios.get(`https://fantacyleauge.com/api/bets/group/${groupId}`, config);
+        const { data } = await axios.get(`/api/bets/group/${groupId}`, config);
         setBets(data);
         setLoading(false);
       } catch (error) {

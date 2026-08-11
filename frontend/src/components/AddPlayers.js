@@ -22,7 +22,7 @@ const AddPlayers = () => {
           },
         };
 
-        const { data } = await axios.get(`https://fantacyleauge.com/api/matches/${matchId}`, config);
+        const { data } = await axios.get(`/api/matches/${matchId}`, config);
         setMatch(data);
 
         // Populate player names if they already exist
@@ -89,7 +89,7 @@ const AddPlayers = () => {
 
       // Update players in the match
       await axios.put(
-        `https://fantacyleauge.com/api/matches/${matchId}/update-players`,
+        `/api/matches/${matchId}/update-players`,
         { team1Players: team1PlayersObj, team2Players: team2PlayersObj },
         config
       );

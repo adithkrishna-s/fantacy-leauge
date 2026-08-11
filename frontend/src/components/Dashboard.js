@@ -34,7 +34,7 @@ const Dashboard = () => {
       };
 
       const { data: user } = await axios.get(
-        'https://fantacyleauge.com/api/users/profile',
+        '/api/users/profile',
         config
       );
       setUserData(user);
@@ -42,7 +42,7 @@ const Dashboard = () => {
       const clubId = typeof user.memberOf === 'object' ? (user.memberOf?._id || user.memberOf?.id) : user.memberOf;
       if (clubId) {
         const { data: matchData } = await axios.get(
-          `https://fantacyleauge.com/api/matches/club/${clubId}`,
+          `/api/matches/club/${clubId}`,
           config
         );
         setMatches(matchData);

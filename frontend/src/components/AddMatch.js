@@ -30,7 +30,7 @@ const AddMatch = () => {
       const utcDateTime = new Date(dateTime).toISOString();
 
       await axios.post(
-        'https://fantacyleauge.com/api/matches',
+        '/api/matches',
         { team1, team2, dateTime: utcDateTime, status },
         config
       );
